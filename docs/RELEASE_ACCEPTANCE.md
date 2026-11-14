@@ -17,7 +17,7 @@ This scope is not a claim of universal protocol compatibility.
 - Hysteria 2 has a Go QUIC implementation and Android loopback bridge.
 - AnyTLS has an experimental native TCP adapter and DNS-over-TCP path. Independent local protocol tests pass; Flybit interoperability, Android CI binding validation and device VPN tests remain pending. AnyTLS UDP is unsupported.
 - VLESS TCP+TLS is experimental; Reality, WebSocket, gRPC, XTLS Vision and UDP remain unsupported. VMess, TUIC and SS2022 adapters are pending.
-- Android VPNService/TUN forwarding supports experimental HY2, AnyTLS TCP and VLESS TCP+TLS paths. AnyTLS/VLESS UDP is unsupported; Flybit real-device validation remains pending.
+- Android VPNService/TUN forwarding supports experimental HY2, AnyTLS TCP, VLESS TCP+TLS, and SOCKS5. SOCKS5 uses TCP CONNECT and UDP ASSOCIATE through the selected node; DNS has same-node TCP fallback. Other AnyTLS/VLESS UDP is unsupported; provider interoperability and real-device validation remain pending.
 - Existing provider observations: certificate authority rejection and QUIC timeout.
 
 ## Trust-store correction
@@ -37,7 +37,7 @@ that a particular provider certificate or network is valid.
    tests against an independent server, including rejection of invalid credentials.
 3. VPNService owns a TUN interface; upstream sockets bypass the VPN through socket
    protection. DNS, IPv4, IPv6 and supported UDP traffic pass through the selected
-   node without direct fallback.
+   node without direct fallback. Verify SOCKS5 UDP ASSOCIATE and same-node DNS fallback.
 4. Start, stop, permission revocation, network changes, peer failure and reconnect
    leave no stale running state, sockets, workers or file descriptors.
 5. TLS tests reject unknown roots, incorrect hostnames and incorrect pins.

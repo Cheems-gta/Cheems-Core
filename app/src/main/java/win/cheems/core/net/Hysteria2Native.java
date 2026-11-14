@@ -38,6 +38,8 @@ public final class Hysteria2Native {
           long.class, String.class, boolean.class, String.class, String.class, network);
       binding().getMethod("startVLESSWithNetwork", String.class, long.class, String.class, String.class,
           long.class, String.class, boolean.class, String.class, String.class, network);
+      binding().getMethod("startSOCKS5WithNetwork", String.class, long.class, String.class, String.class,
+          long.class, String.class, network);
       binding().getMethod("startTunnel", long.class);
       binding().getMethod("stopTunnel");
       return true;
@@ -50,16 +52,20 @@ public final class Hysteria2Native {
     boolean hy2 = "hysteria2".equals(node.type);
     boolean anytls = "anytls".equals(node.type);
     boolean vless = "vless".equals(node.type);
-    if (!hy2 && !anytls && !vless) throw new IllegalArgumentException("Native node protocol required");
-    if ((vless && node.uuid.isEmpty()) || (!vless && node.password.isEmpty())) throw new IllegalArgumentException("Missing node credentials");
+    boolean socks5 = "socks5".equals(node.type) && isPackaged();
+    if (!hy2 && !anytls && !vless && !socks5) throw new IllegalArgumentException("Native node protocol required");
+    if ((vless && node.uuid.isEmpty()) || (!vless && !socks5 && node.password.isEmpty())) throw new IllegalArgumentException("Missing node credentials");
     if (localPort < 1 || localPort > 65535) throw new IllegalArgumentException("Invalid local port");
     if (allowUnverifiedTLS && !node.hasInsecureTlsFlag())
       throw new IllegalArgumentException("Unverified TLS requires an explicit insecure provider flag");
-    String trustedCAPEM = customCAPEM == null || customCAPEM.isBlank()
-        ? node.trustedCAPEM() : customCAPEM;
-    if (trustedCAPEM.length() > 64 * 1024)
-      throw new IllegalArgumentException("Custom CA certificate exceeds 64 KiB");
-    String platformAndCustomCAPEM = PlatformTrust.withCustomCA(trustedCAPEM);
+    String platformAndCustomCAPEM = "";
+    if (!socks5) {
+      String trustedCAPEM = customCAPEM == null || customCAPEM.isBlank()
+          ? node.trustedCAPEM() : customCAPEM;
+      if (trustedCAPEM.length() > 64 * 1024)
+        throw new IllegalArgumentException("Custom CA certificate exceeds 64 KiB");
+      platformAndCustomCAPEM = PlatformTrust.withCustomCA(trustedCAPEM);
+    }
     byte[] nonce = new byte[32];
     new SecureRandom().nextBytes(nonce);
     String token = Base64.getUrlEncoder().withoutPadding().encodeToString(nonce);
@@ -73,11 +79,18 @@ public final class Hysteria2Native {
             if(method.getName().equals("toString")) return "CheemsPhysicalNetwork";
             throw new UnsupportedOperationException(method.getName());
           });
-      String methodName = hy2 ? "startWithNetwork" : anytls ? "startAnyTLSWithNetwork" : "startVLESSWithNetwork";
-      Method start = binding().getMethod(methodName, String.class, long.class, String.class,
-          String.class, long.class, String.class, boolean.class, String.class, String.class, networkType);
-      start.invoke(null, node.host, (long) node.port, node.sni, vless ? node.uuid : node.password, (long) localPort,
-          token, allowUnverifiedTLS, platformAndCustomCAPEM, node.certificateSHA256(),network);
+      if (socks5) {
+        Method start = binding().getMethod("startSOCKS5WithNetwork", String.class, long.class,
+            String.class, String.class, long.class, String.class, networkType);
+        start.invoke(null, node.host, (long) node.port, node.username, node.password,
+            (long) localPort, token, network);
+      } else {
+        String methodName = hy2 ? "startWithNetwork" : anytls ? "startAnyTLSWithNetwork" : "startVLESSWithNetwork";
+        Method start = binding().getMethod(methodName, String.class, long.class, String.class,
+            String.class, long.class, String.class, boolean.class, String.class, String.class, networkType);
+        start.invoke(null, node.host, (long) node.port, node.sni, vless ? node.uuid : node.password,
+            (long) localPort, token, allowUnverifiedTLS, platformAndCustomCAPEM, node.certificateSHA256(),network);
+      }
     } catch (ClassNotFoundException e) {
       localToken.compareAndSet(token, null);
       throw new IllegalStateException("Native protocol AAR is not packaged in this APK", e);

@@ -31,7 +31,8 @@ public final class Dialer {
     Socket socket = new Socket();
     track.accept(socket);
     try {
-      boolean internalNative = "hysteria2".equals(node.type) || "anytls".equals(node.type) || "vless".equals(node.type);
+      boolean internalNative = "hysteria2".equals(node.type) || "anytls".equals(node.type) || "vless".equals(node.type)
+          || ("socks5".equals(node.type) && Hysteria2Native.isRunning());
       socket.connect(
           internalNative
               ? new InetSocketAddress("127.0.0.1", Hysteria2Native.LOCAL_SOCKS_PORT)

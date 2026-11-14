@@ -34,8 +34,8 @@ public final class TransportCapabilities {
   }
 
   public static boolean canDialUdp(String protocol) {
-    // Current Dialer supports only TCP; do not advertise UDP prematurely.
-    return false;
+    // SOCKS5 UDP ASSOCIATE is available only in builds with the native TUN AAR.
+    return protocol != null && protocol.equalsIgnoreCase("socks5");
   }
 
   public static boolean requiresQuic(String protocol) {

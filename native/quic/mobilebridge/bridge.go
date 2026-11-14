@@ -21,7 +21,9 @@ var (
 	session      *quictransport.Hysteria2Session
 	anyTLSClient *quictransport.AnyTLSClient
 	vlessClient  *quictransport.VLESSClient
+	socks5Client *quictransport.SOCKS5Client
 	activeTCP    tcpBackend
+	activeUDP    udpBackend
 	server       *quictransport.SOCKS5Server
 	starting     bool
 	generation   uint64
@@ -33,6 +35,30 @@ var (
 
 type tcpBackend interface {
 	OpenTCP(context.Context, string, int) (io.ReadWriteCloser, error)
+}
+
+type udpBackend interface {
+	OpenUDPAssociation() (udpAssociation, error)
+}
+
+type udpAssociation interface {
+	WriteTo([]byte, string) error
+	Read(context.Context) (quictransport.UDPMessage, error)
+	Close() error
+}
+
+type hysteriaUDPBackend struct {
+	session *quictransport.Hysteria2Session
+}
+
+func (b hysteriaUDPBackend) OpenUDPAssociation() (udpAssociation, error) {
+	return b.session.OpenUDPAssociation()
+}
+
+type socks5UDPBackend struct{ client *quictransport.SOCKS5Client }
+
+func (b socks5UDPBackend) OpenUDPAssociation() (udpAssociation, error) {
+	return b.client.OpenUDPAssociation()
 }
 
 // Start authenticates and opens a local TCP-only SOCKS5 listener.
@@ -111,7 +137,13 @@ func start(host string, port int, sni string, password string, localPort int, lo
 	session = newSession
 	anyTLSClient = nil
 	vlessClient = nil
+	socks5Client = nil
 	activeTCP = newSession
+	if newSession.UDPEnabled {
+		activeUDP = hysteriaUDPBackend{session: newSession}
+	} else {
+		activeUDP = nil
+	}
 	server = newServer
 	startNetwork = network
 	running.Store(true)
@@ -124,6 +156,7 @@ func start(host string, port int, sni string, password string, localPort int, lo
 				server = nil
 				session = nil
 				activeTCP = nil
+				activeUDP = nil
 				running.Store(false)
 				lastError = "SOCKS5 listener stopped unexpectedly"
 				mu.Unlock()
@@ -145,6 +178,7 @@ func start(host string, port int, sni string, password string, localPort int, lo
 		server = nil
 		session = nil
 		activeTCP = nil
+		activeUDP = nil
 		running.Store(false)
 		lastError = "Hysteria 2 QUIC connection closed"
 		mu.Unlock()
@@ -205,8 +239,10 @@ func StartAnyTLSWithNetwork(host string, port int, sni string, password string, 
 	}
 	session = nil
 	vlessClient = nil
+	socks5Client = nil
 	anyTLSClient = client
 	activeTCP = client
+	activeUDP = nil
 	server = newServer
 	startNetwork = network
 	running.Store(true)
@@ -219,6 +255,7 @@ func StartAnyTLSWithNetwork(host string, port int, sni string, password string, 
 				server = nil
 				anyTLSClient = nil
 				activeTCP = nil
+				activeUDP = nil
 				running.Store(false)
 				lastError = "AnyTLS local SOCKS5 listener stopped unexpectedly"
 				mu.Unlock()
@@ -276,7 +313,9 @@ func StartVLESSWithNetwork(host string, port int, sni string, userUUID string, l
 	session = nil
 	anyTLSClient = nil
 	vlessClient = client
+	socks5Client = nil
 	activeTCP = client
+	activeUDP = nil
 	server = newServer
 	startNetwork = network
 	running.Store(true)
@@ -289,8 +328,74 @@ func StartVLESSWithNetwork(host string, port int, sni string, userUUID string, l
 				server = nil
 				vlessClient = nil
 				activeTCP = nil
+				activeUDP = nil
 				running.Store(false)
 				lastError = "VLESS local SOCKS5 listener stopped unexpectedly"
+				mu.Unlock()
+				return
+			}
+			mu.Unlock()
+		}
+	}()
+	return nil
+}
+
+// StartSOCKS5WithNetwork enables SOCKS5 TCP and UDP traffic on the global TUN.
+func StartSOCKS5WithNetwork(host string, port int, username string, password string, localPort int, localSecret string, network Network) error {
+	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
+		return errors.New("invalid server or local port")
+	}
+	if len(localSecret) < 24 || len(localSecret) > 255 || network == nil {
+		return errors.New("local secret and protected network callback required")
+	}
+	client, err := quictransport.NewSOCKS5Client(net.JoinHostPort(host, strconv.Itoa(port)), username, password, network, 10*time.Second)
+	if err != nil {
+		return err
+	}
+	mu.Lock()
+	if starting || server != nil {
+		mu.Unlock()
+		return errors.New("a native proxy is already starting or running")
+	}
+	starting = true
+	startGeneration := generation
+	mu.Unlock()
+	newServer, err := quictransport.ListenSOCKS5WithDialer(fmt.Sprintf("127.0.0.1:%d", localPort), localSecret, client.OpenTCP)
+	if err != nil {
+		recordFailure(startGeneration, err)
+		return err
+	}
+	mu.Lock()
+	if generation == startGeneration {
+		starting = false
+		startCancel = nil
+	}
+	if generation != startGeneration {
+		mu.Unlock()
+		_ = newServer.Close()
+		return errors.New("SOCKS5 startup canceled")
+	}
+	session = nil
+	anyTLSClient = nil
+	vlessClient = nil
+	socks5Client = client
+	activeTCP = client
+	activeUDP = socks5UDPBackend{client: client}
+	server = newServer
+	startNetwork = network
+	running.Store(true)
+	lastError = ""
+	mu.Unlock()
+	go func() {
+		if serveErr := newServer.Serve(); serveErr != nil {
+			mu.Lock()
+			if server == newServer {
+				server = nil
+				socks5Client = nil
+				activeTCP = nil
+				activeUDP = nil
+				running.Store(false)
+				lastError = "SOCKS5 local bridge stopped unexpectedly"
 				mu.Unlock()
 				return
 			}
@@ -323,11 +428,14 @@ func Stop() {
 	oldSession := session
 	oldAnyTLS := anyTLSClient
 	oldVLESS := vlessClient
+	oldSOCKS5 := socks5Client
 	server = nil
 	session = nil
 	anyTLSClient = nil
 	vlessClient = nil
+	socks5Client = nil
 	activeTCP = nil
+	activeUDP = nil
 	startNetwork = nil
 	running.Store(false)
 	mu.Unlock()
@@ -345,6 +453,9 @@ func Stop() {
 	}
 	if oldVLESS != nil {
 		_ = oldVLESS.Close()
+	}
+	if oldSOCKS5 != nil {
+		_ = oldSOCKS5.Close()
 	}
 }
 

@@ -25,9 +25,10 @@ public class TransportCapabilitiesTest {
     assertTrue(TransportCapabilities.requiresQuic("tuic"));
     assertFalse(TransportCapabilities.requiresQuic("anytls"));
   }
-  @Test public void noUdpDialerExistsYet() {
-    for(String p:new String[]{"ss","hysteria2","anytls","tuic"})
+  @Test public void socks5UdpIsNativeOnlyAndOtherUdpRemainsUnadvertised() {
+    for(String p:new String[]{"ss","trojan","hysteria2","hy2","anytls","vless","tuic"})
       assertFalse(TransportCapabilities.canDialUdp(p));
+    assertTrue(TransportCapabilities.canDialUdp("socks5"));
   }
 }
 

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	quictransport "github.com/Cheems-gta/Cheems-Core/native/quic"
 	"github.com/sagernet/sing-tun"
 	"github.com/sagernet/sing/common/buf"
 	M "github.com/sagernet/sing/common/metadata"
@@ -31,7 +30,7 @@ func StartTunnel(fd int64) error {
 		return errors.New("invalid TUN file descriptor")
 	}
 	mu.Lock()
-	current, udpSession, network := activeTCP, session, startNetwork
+	current, datagrams, network := activeTCP, activeUDP, startNetwork
 	mu.Unlock()
 	if current == nil || network == nil {
 		return errors.New("authenticated TCP proxy session with protected physical network required")
@@ -62,7 +61,7 @@ func StartTunnel(fd int64) error {
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	handler := &vpnFlowHandler{tcp: current, udp: udpSession}
+	handler := &vpnFlowHandler{tcp: current, udp: datagrams}
 	stack, err := tun.NewStack("go", tun.StackOptions{Context: ctx, Tun: device, TunOptions: options, Handler: handler, UDPTimeout: 2 * time.Minute, ICMPTimeout: time.Minute})
 	if err != nil {
 		cancel()
@@ -111,7 +110,7 @@ func StopTunnel() {
 
 type vpnFlowHandler struct {
 	tcp tcpBackend
-	udp *quictransport.Hysteria2Session
+	udp udpBackend
 }
 
 func (h *vpnFlowHandler) JudgeFlow(uint8, netip.AddrPort, netip.AddrPort, []byte) tun.FlowVerdict {
@@ -184,33 +183,32 @@ func (h *vpnFlowHandler) NewPacketConnectionEx(ctx context.Context, conn N.Packe
 }
 
 func (h *vpnFlowHandler) NewDNSPacket(payload []byte, source, destination M.Socksaddr, writer N.PacketWriter) {
-	if h.udp == nil || !h.udp.UDPEnabled {
-		response, err := dnsOverTCP(h.tcp, payload)
-		if err != nil {
-			return
+	if h.udp != nil {
+		assoc, err := h.udp.OpenUDPAssociation()
+		if err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err = assoc.WriteTo(payload, "1.1.1.1:53"); err == nil {
+				response, readErr := assoc.Read(ctx)
+				if readErr == nil {
+					packet := buf.NewSize(len(response.Payload))
+					_, _ = packet.Write(response.Payload)
+					_ = writer.WritePacket(packet, M.ParseSocksaddr(response.Address))
+					cancel()
+					_ = assoc.Close()
+					return
+				}
+			}
+			cancel()
+			_ = assoc.Close()
 		}
-		packet := buf.NewSize(len(response))
-		_, _ = packet.Write(response)
-		_ = writer.WritePacket(packet, M.ParseSocksaddr("1.1.1.1:53"))
-		return
 	}
-	assoc, err := h.udp.OpenUDPAssociation()
+	response, err := dnsOverTCP(h.tcp, payload)
 	if err != nil {
 		return
 	}
-	defer assoc.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err = assoc.WriteTo(payload, "1.1.1.1:53"); err != nil {
-		return
-	}
-	response, err := assoc.Read(ctx)
-	if err != nil {
-		return
-	}
-	packet := buf.NewSize(len(response.Payload))
-	_, _ = packet.Write(response.Payload)
-	_ = writer.WritePacket(packet, M.ParseSocksaddr(response.Address))
+	packet := buf.NewSize(len(response))
+	_, _ = packet.Write(response)
+	_ = writer.WritePacket(packet, M.ParseSocksaddr("1.1.1.1:53"))
 }
 
 func dnsOverTCP(session tcpBackend, query []byte) ([]byte, error) {
