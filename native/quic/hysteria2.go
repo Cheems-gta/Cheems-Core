@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	quic "github.com/quic-go/quic-go"
@@ -24,6 +25,9 @@ type Hysteria2Session struct {
 	Transport  *Transport
 	http3      *http3.Transport
 	UDPEnabled bool
+	udpMu      sync.Mutex
+	udpRoutes  map[uint32]chan UDPMessage
+	udpOnce    sync.Once
 }
 
 type Hysteria2Config struct {

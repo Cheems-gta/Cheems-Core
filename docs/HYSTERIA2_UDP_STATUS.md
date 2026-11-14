@@ -1,16 +1,16 @@
-## Hysteria 2 UDP milestone
+## Scope update
 
-Implement the Hysteria 2 UDP datagram envelope, bounded address and payload
-validation, nonzero per-session identifiers, packet IDs, and explicit rejection
-of fragmented packets until fragmentation/reassembly is implemented.
+The loopback SOCKS5 server now accepts UDP ASSOCIATE only when the authenticated
+HY2 server advertised UDP. It binds a loopback UDP socket, validates the client
+endpoint and SOCKS5 packet framing, creates one Hysteria UDP association, routes
+replies to the originating SOCKS client, and cleans up when its TCP control
+connection closes.
 
-After authentication, read the Hysteria-UDP response header. The client only
-sends or receives datagrams when the server advertises UDP support. TCP
-interoperability remains covered separately by the local HTTP/3 reference peer.
+Single-datagram Hysteria framing and SOCKS address parsing have unit coverage
+for IPv4, IPv6, domains, malformed packets, oversize payloads and fragmentation
+rejection. Go race tests and vet pass.
 
-This milestone does not yet expose UDP ASSOCIATE through the loopback SOCKS
-listener, pass Android TUN UDP flows into the adapter, or verify datagram
-interoperability against a public/provider server. Do not mark end-to-end UDP or
-Android VPN as complete. Hysteria 2's protocol specification defines a 32-bit
-session ID, 16-bit packet ID, fragment ID/count, address and payload in each
-QUIC datagram. Current adapter supports single-fragment packets only.
+Still pending: a true QUIC datagram echo interoperability test, SOCKS UDP
+association integration test, fragmentation/reassembly, reliable DNS behavior,
+Android TUN/VPN UDP flow integration, Flybit device test and sustained stability
+test. This checkpoint is not yet an end-to-end UDP support claim.
