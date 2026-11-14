@@ -65,7 +65,7 @@ func DialHysteria2(ctx context.Context, cfg Hysteria2Config) (*Hysteria2Session,
 func AuthenticationRequest(ctx context.Context, serverName, password string) (*http.Request,error) {
  if password=="" { return nil,errors.New("Hysteria 2 password required") }
  if serverName=="" || strings.ContainsAny(serverName,"/\\\r\n") { return nil,errors.New("invalid server name") }
- u:=&url.URL{Scheme:"https",Host:serverName,Path:"/auth"}
+ u:=&url.URL{Scheme:"https",Host:"hysteria",Path:"/auth"}
  req,err:=http.NewRequestWithContext(ctx,http.MethodPost,u.String(),nil)
  if err!=nil { return nil,err }
  req.Header.Set("Hysteria-Auth",password)
