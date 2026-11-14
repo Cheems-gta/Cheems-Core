@@ -3,6 +3,7 @@ package win.cheems.core;
 import android.app.*;
 import android.content.*;
 import android.os.IBinder;
+import android.net.VpnService;
 import android.os.ParcelFileDescriptor;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
