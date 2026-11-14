@@ -106,8 +106,20 @@ public final class MainActivity extends Activity {
           }
         });
     button(actions, "停止并关闭连接", () -> stopService(new Intent(this, CoreService.class)));
+    button(actions, "复制本地代理账号 / 密码", () -> {
+      String secret = CoreService.localHttpPassword;
+      if (secret == null || secret.isEmpty()) {
+        message("请先启动本地代理，再获取本次会话的认证信息。");
+        return;
+      }
+      ClipboardManager clipboard =
+          (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+      clipboard.setPrimaryClip(ClipData.newPlainText(
+          "Cheems Core HTTP Proxy", "用户名：cheems\n密码：" + secret));
+      message("已复制本次会话的代理用户名和密码。请仅在你信任的应用中配置代理。");
+    });
     actions.addView(
-        label("监听 127.0.0.1:8899（HTTP CONNECT）。需要应用显式使用此代理；本版尚未接入 Android 全局 VPN。", 13, muted));
+        label("监听 127.0.0.1:8899（HTTP CONNECT，需要 Basic 认证）。请为使用代理的应用配置本次会话的用户名/密码；本版尚未接入 Android 全局 VPN。", 13, muted));
     LinearLayout events = card(root);
     events.addView(label("03  运行记录", 17, ink));
     logs = label("等待导入节点", 12, muted);
