@@ -1,11 +1,12 @@
 package win.cheems.core;
 
 /**
- * Protocol capability registry. Declared targets are not implemented protocols.
- * Use this to prevent the UI from reporting a parsed subscription as connected.
+ * User-facing capability metadata.
+ * IMPLEMENTED means a protocol dialer exists; it does not imply provider
+ * interoperability, Android VPN support or completed device verification.
  */
 public final class ProtocolRegistry {
-    public enum Status { EXPERIMENTAL, PLANNED }
+    public enum Status { IMPLEMENTED, EXPERIMENTAL, PLANNED }
     public static final class Capability {
         public final String name;
         public final Status status;
@@ -17,12 +18,13 @@ public final class ProtocolRegistry {
     private ProtocolRegistry() {}
     public static final Capability[] CAPABILITIES = {
         new Capability("HTTP CONNECT (loopback)", Status.EXPERIMENTAL),
-        new Capability("HTTPS Proxy", Status.PLANNED),
-        new Capability("SOCKS5", Status.PLANNED),
-        new Capability("Shadowsocks", Status.PLANNED),
+        new Capability("HTTP upstream CONNECT", Status.IMPLEMENTED),
+        new Capability("HTTPS upstream CONNECT", Status.IMPLEMENTED),
+        new Capability("SOCKS5 TCP CONNECT", Status.IMPLEMENTED),
+        new Capability("Shadowsocks AEAD TCP", Status.IMPLEMENTED),
+        new Capability("Trojan TCP/TLS", Status.IMPLEMENTED),
         new Capability("VMess", Status.PLANNED),
         new Capability("VLESS", Status.PLANNED),
-        new Capability("Trojan", Status.PLANNED),
         new Capability("Hysteria2", Status.PLANNED),
         new Capability("TUIC", Status.PLANNED),
         new Capability("AnyTLS", Status.PLANNED),
@@ -31,6 +33,9 @@ public final class ProtocolRegistry {
         new Capability("NaiveProxy", Status.PLANNED)
     };
     public static boolean isImplemented(String protocol) {
-        return "HTTP CONNECT (loopback)".equals(protocol);
+        for (Capability c : CAPABILITIES) {
+            if (c.name.equals(protocol)) return c.status != Status.PLANNED;
+        }
+        return false;
     }
 }
