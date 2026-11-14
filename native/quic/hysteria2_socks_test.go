@@ -15,7 +15,13 @@ func TestSOCKS5RelayEndToEnd(t *testing.T){
  server,err:=listenSOCKS5("127.0.0.1:0",func(ctx context.Context,host string,port int)(io.ReadWriteCloser,error){
   called<-net.JoinHostPort(host,"443")
   local,remote:=net.Pipe()
-  go func(){defer remote.Close();_,_=io.Copy(remote,remote)}()
+  go func(){
+   defer remote.Close()
+   buf:=make([]byte,5)
+   if _,err:=io.ReadFull(remote,buf);err!=nil{return}
+   if string(buf)!="hello"{return}
+   _,_=remote.Write(buf)
+  }()
   return local,nil
  },testLocalSecret)
  if err!=nil{t.Fatal(err)}
