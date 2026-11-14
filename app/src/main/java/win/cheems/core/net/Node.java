@@ -27,8 +27,6 @@ public final class Node {
     String reason = "";
     if (host.isEmpty() || port < 1 || port > 65535) reason = "地址或端口无效";
     else if (type.equals("hysteria2") && password.isEmpty()) reason = "Hysteria 2 缺少认证密码";
-    else if (type.equals("hysteria2") && Boolean.parseBoolean(value(m, "skip-cert-verify", "false")))
-      reason = "Hysteria 2 配置要求跳过证书验证；当前安全策略不允许";
     else if (type.equals("hysteria2") && (!value(m, "obfs", "").isEmpty() || !value(m, "obfs-password", "").isEmpty()))
       reason = "当前独立内核尚不支持 Hysteria 2 混淆（Salamander）";
     else if (type.equals("hysteria2") && m.containsKey("ports"))
@@ -46,9 +44,16 @@ public final class Node {
         && !Arrays.asList("aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305").contains(cipher))
       reason = "暂不支持加密方式 " + cipher;
     else if ((type.equals("ss") || type.equals("trojan")) && password.isEmpty()) reason = "缺少密码";
-    else if (Boolean.parseBoolean(value(m, "skip-cert-verify", "false")))
+    else if (!type.equals("hysteria2")
+        && Boolean.parseBoolean(value(m, "skip-cert-verify", "false")))
       reason = "此配置要求跳过证书验证；请使用有效证书";
     unsupported = reason;
+  }
+
+  /** HY2 nodes can be recognized without silently accepting unverified TLS. */
+  public boolean needsInsecureTlsConsent() {
+    return type.equals("hysteria2")
+        && Boolean.parseBoolean(value(source, "skip-cert-verify", "false"));
   }
 
   public boolean supported() {
