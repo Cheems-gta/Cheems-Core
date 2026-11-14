@@ -4,12 +4,16 @@ import android.app.*;
 import android.content.*;
 import android.os.IBinder;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import win.cheems.core.net.Hysteria2Native;
 import win.cheems.core.net.Node;
 
 public final class CoreService extends Service {
   static volatile Node selected;
   static volatile ProxyCore core;
   private static final ArrayDeque<String> events = new ArrayDeque<>();
+  private final AtomicBoolean launching = new AtomicBoolean();
+  private volatile boolean destroyed;
 
   static synchronized void log(String s) {
     if (events.size() >= 40) events.removeFirst();
@@ -23,6 +27,7 @@ public final class CoreService extends Service {
   @Override
   public void onCreate() {
     super.onCreate();
+    destroyed = false;
     core = new ProxyCore(CoreService::log);
   }
 
@@ -43,18 +48,54 @@ public final class CoreService extends Service {
             .setOngoing(true)
             .build();
     startForeground(1, n);
-    try {
-      core.start(selected);
-    } catch (Exception e) {
-      log("无法启动：请检查节点选择或端口占用");
-      stopSelf();
-    }
+    if (!launching.compareAndSet(false, true)) return START_NOT_STICKY;
+
+    final Node node = selected;
+    new Thread(
+            () -> {
+              try {
+                if (node == null || !node.supported()) {
+                  throw new IllegalStateException("请选择有效且受支持的节点");
+                }
+                if (destroyed) return;
+                if ("hysteria2".equals(node.type)) {
+                  if (!Hysteria2Native.isPackaged()) {
+                    throw new IllegalStateException("当前 APK 未打包 Hysteria 2 原生内核");
+                  }
+                  log("正在通过 QUIC 连接 Hysteria 2 服务端…");
+                  Hysteria2Native.start(node, Hysteria2Native.LOCAL_SOCKS_PORT);
+                }
+                if (destroyed) {
+                  if ("hysteria2".equals(node.type)) Hysteria2Native.stop();
+                  return;
+                }
+                core.start(node);
+              } catch (Exception | LinkageError e) {
+                String message = e.getMessage();
+                log("代理启动失败：" + (message == null ? e.getClass().getSimpleName() : message));
+                stopSelfResult(id);
+              }
+            },
+            "cheems-connect")
+        .start();
     return START_NOT_STICKY;
   }
 
   @Override
   public void onDestroy() {
+    destroyed = true;
     if (core != null) core.stop();
+    // Go startup may still be waiting for QUIC: do not block Android's main thread.
+    new Thread(
+            () -> {
+              try {
+                if (Hysteria2Native.isPackaged()) Hysteria2Native.stop();
+              } catch (Exception e) {
+                log("原生连接关闭异常");
+              }
+            },
+            "cheems-shutdown")
+        .start();
     stopForeground(STOP_FOREGROUND_REMOVE);
     super.onDestroy();
   }
