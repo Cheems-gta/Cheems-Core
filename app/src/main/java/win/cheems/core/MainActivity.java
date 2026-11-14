@@ -73,7 +73,8 @@ public final class MainActivity extends Activity {
     spinner.setOnItemSelectedListener(
         new android.widget.AdapterView.OnItemSelectedListener() {
           public void onItemSelected(android.widget.AdapterView<?> a, View v, int p, long id) {
-            if (selected != p && CoreService.core != null && CoreService.core.running()) {
+            if (selected != p && CoreService.core != null &&
+                (CoreService.core.running() || Hysteria2Native.isRunning())) {
               stopService(new Intent(MainActivity.this, CoreService.class));
               CoreService.log("节点已切换，请重新启动代理");
             }
@@ -179,6 +180,10 @@ public final class MainActivity extends Activity {
       message(n.unsupported);
       return null;
     }
+    if ("hysteria2".equals(n.type) && !Hysteria2Native.isPackaged()) {
+      message("当前 APK 不含 Hysteria 2 原生内核，请使用带 QUIC AAR 的集成构建版。");
+      return null;
+    }
     return n;
   }
 
@@ -192,7 +197,7 @@ public final class MainActivity extends Activity {
     int supported = 0;
     Map<String, Integer> types = new TreeMap<>();
     for (Node n : nodes) {
-      if (n.supported()) supported++;
+      if (n.supported() && (!"hysteria2".equals(n.type) || Hysteria2Native.isPackaged())) supported++;
       types.put(n.type, types.getOrDefault(n.type, 0) + 1);
     }
     summary.setText(
@@ -308,6 +313,10 @@ public final class MainActivity extends Activity {
   private void probe() {
     Node n = current();
     if (n == null || busy) return;
+    if ("hysteria2".equals(n.type) && !Hysteria2Native.isRunning()) {
+      message("请先启动 Hysteria 2 代理，等待本地连接就绪后再验证转发。");
+      return;
+    }
     busy = true;
     CoreService.log("正在验证节点的 HTTP 转发…");
     io.execute(
