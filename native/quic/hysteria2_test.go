@@ -14,6 +14,7 @@ func TestAuthenticationRequest(t *testing.T) {
  if req.Method!=http.MethodPost || req.URL.Path!="/auth" || req.URL.Scheme!="https" { t.Fatalf("unexpected auth request: %s %s",req.Method,req.URL) }
  if req.Header.Get("Hysteria-Auth")!="test-secret" { t.Fatal("missing authentication header") }
  if req.Header.Get("Hysteria-CC-RX")!="0" { t.Fatal("missing congestion control receive header") }
+ if len(req.Header.Get("Hysteria-Padding"))<256 { t.Fatal("missing authentication padding") }
 }
 func TestAuthenticationRejectsMissingPassword(t *testing.T) {
  _,err:=AuthenticationRequest(context.Background(),"edge.example.com","")
