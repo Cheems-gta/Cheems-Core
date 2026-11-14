@@ -65,18 +65,18 @@ func WriteTCPRequest(w io.Writer,address string) error {
 }
 
 func ReadTCPResponse(r io.Reader) error {
- var status [1]byte
- if _,err:=io.ReadFull(r,status[:]);err!=nil { return err }
  reader:=quicvarint.NewReader(r)
+ var status [1]byte
+ if _,err:=io.ReadFull(reader,status[:]);err!=nil { return err }
  msgLen,err:=quicvarint.Read(reader)
  if err!=nil { return err }
  if msgLen>maxMessageLength { return errors.New("Hysteria 2 response message too large") }
  msg:=make([]byte,int(msgLen))
- if _,err=io.ReadFull(r,msg);err!=nil { return err }
+ if _,err=io.ReadFull(reader,msg);err!=nil { return err }
  padLen,err:=quicvarint.Read(reader)
  if err!=nil { return err }
  if padLen>maxPaddingLength { return errors.New("Hysteria 2 response padding too large") }
- if _,err=io.CopyN(io.Discard,r,int64(padLen));err!=nil { return err }
+ if _,err=io.CopyN(io.Discard,reader,int64(padLen));err!=nil { return err }
  if status[0]!=0 { return fmt.Errorf("Hysteria 2 TCP connect rejected: %s",string(msg)) }
  return nil
 }
