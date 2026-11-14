@@ -18,7 +18,7 @@ public final class Hysteria2Native {
   }
 
   public static boolean isPackaged() {
-    try { binding().getMethod("start", String.class, int.class, String.class, String.class, int.class); return true; }
+    try { binding().getMethod("start", String.class, long.class, String.class, String.class, long.class); return true; }
     catch (ReflectiveOperationException | LinkageError e) { return false; }
   }
 
@@ -27,8 +27,8 @@ public final class Hysteria2Native {
     if (node.password.isEmpty()) throw new IllegalArgumentException("Missing Hysteria 2 password");
     if (localPort < 1 || localPort > 65535) throw new IllegalArgumentException("Invalid local port");
     try {
-      Method start = binding().getMethod("start", String.class, int.class, String.class, String.class, int.class);
-      start.invoke(null, node.host, node.port, node.sni, node.password, localPort);
+      Method start = binding().getMethod("start", String.class, long.class, String.class, String.class, long.class);
+      start.invoke(null, node.host, (long) node.port, node.sni, node.password, (long) localPort);
     } catch (ClassNotFoundException e) {
       throw new IllegalStateException("Hysteria 2 native AAR is not packaged in this APK", e);
     } catch (InvocationTargetException e) {
