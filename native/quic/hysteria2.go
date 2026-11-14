@@ -42,22 +42,22 @@ func DialHysteria2(ctx context.Context, cfg Hysteria2Config) (*Hysteria2Session,
  ctx,cancel:=context.WithTimeout(ctx,cfg.Timeout)
  defer cancel()
  tlsConfig:=&tls.Config{ServerName:cfg.ServerName,NextProtos:[]string{"h3"},MinVersion:tls.VersionTLS13}
- conn,err:=quic.DialAddr(ctx,cfg.Address,tlsConfig,&quic.Config{KeepAlivePeriod:15*time.Second,MaxIdleTimeout:60*time.Second})
+ conn,err:=quic.DialAddrEarly(ctx,cfg.Address,tlsConfig,&quic.Config{KeepAlivePeriod:15*time.Second,MaxIdleTimeout:60*time.Second})
  if err!=nil { return nil,fmt.Errorf("Hysteria 2 QUIC handshake: %w",err) }
  transport:=&Transport{connection:conn}
  h3:=&http3.Transport{
   TLSClientConfig:tlsConfig,
   Dial:func(context.Context,string,*tls.Config,*quic.Config)(quic.EarlyConnection,error){
-   // quic-go's http3.Transport requires an EarlyConnection.
-   // This implementation intentionally avoids silently creating a second connection.
-   return nil,errors.New("authenticated HTTP/3 transport requires shared early QUIC connection")
+   return conn,nil
   },
  }
- // Authentication must run over the same QUIC connection as subsequent proxy streams.
- // Until that shared HTTP/3 session is implemented, fail closed.
- _=h3
- transport.Close()
- return nil,errors.New("Hysteria 2 HTTP/3 authentication over shared QUIC connection not implemented")
+ session:=&Hysteria2Session{Transport:transport,http3:h3}
+ req,err:=AuthenticationRequest(ctx,cfg.ServerName,cfg.Password)
+ if err!=nil { session.Close();return nil,err }
+ resp,err:=h3.RoundTrip(req)
+ if err!=nil { session.Close();return nil,fmt.Errorf("Hysteria 2 HTTP/3 authentication: %w",err) }
+ if err=CheckAuthenticationResponse(resp);err!=nil { session.Close();return nil,err }
+ return session,nil
 }
 
 // AuthenticationRequest builds a protocol-specific HTTP/3 authentication request.
