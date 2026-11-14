@@ -15,7 +15,7 @@ import (
 type tcpDialer func(context.Context, string, int) (io.ReadWriteCloser, error)
 
 // SOCKS5Server forwards local TCP SOCKS5 CONNECT sessions over Hysteria 2.
-// UDP ASSOCIATE and username/password are deliberately not advertised.
+// UDP ASSOCIATE is available only when the authenticated HY2 server advertises UDP.
 type SOCKS5Server struct {
 	listener net.Listener
 	dial     tcpDialer
@@ -235,3 +235,4 @@ func (s *SOCKS5Server) String() string {
 	}
 	return fmt.Sprintf("SOCKS5 listening at %s", s.listener.Addr())
 }
+
