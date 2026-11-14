@@ -56,6 +56,20 @@ public final class Node {
         && Boolean.parseBoolean(value(source, "skip-cert-verify", "false"));
   }
 
+  /** An inline PEM CA imported in the subscription (never a filesystem path). */
+  public String trustedCAPEM() {
+    if (!type.equals("hysteria2")) return "";
+    String pem = value(source, "ca-str", value(source, "ca", ""));
+    return pem.contains("-----BEGIN CERTIFICATE-----") ? pem : "";
+  }
+
+  /** HY2 server leaf-certificate pin; do not confuse with TLS client fingerprint. */
+  public String certificateSHA256() {
+    if (!type.equals("hysteria2")) return "";
+    return value(source, "pinSHA256",
+        value(source, "pin-sha256", value(source, "pin-sha-256", "")));
+  }
+
   public boolean supported() {
     return unsupported.isEmpty();
   }
