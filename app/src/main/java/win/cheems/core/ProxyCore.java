@@ -3,6 +3,7 @@ package win.cheems.core;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
@@ -15,6 +16,7 @@ public final class ProxyCore {
   }
 
   private final Listener listener;
+  private final String localSecret;
   private final Set<Socket> sockets = ConcurrentHashMap.newKeySet();
   private final AtomicLong up = new AtomicLong(), down = new AtomicLong();
   private final AtomicInteger active = new AtomicInteger();
@@ -24,8 +26,28 @@ public final class ProxyCore {
   private ExecutorService pool;
   private Thread acceptThread;
 
-  public ProxyCore(Listener l) {
+  public ProxyCore(Listener l, String secret) {
+    if (secret == null || secret.length() < 24)
+      throw new IllegalArgumentException("Local proxy authentication secret required");
     listener = l;
+    localSecret = secret;
+  }
+
+  // The loopback interface is accessible to other Android apps. Every CONNECT
+  // request must prove knowledge of this service instance's random secret.
+  boolean authorized(String headers) {
+    String expected = Base64.getEncoder()
+        .encodeToString(("cheems:" + localSecret).getBytes(StandardCharsets.UTF_8));
+    for (String line : headers.split("\r\n")) {
+      if (!line.regionMatches(true, 0, "Proxy-Authorization:", 0, 20)) continue;
+      String value = line.substring(20).trim();
+      if (!value.regionMatches(true, 0, "Basic ", 0, 6)) continue;
+      String offered = value.substring(6).trim();
+      if (MessageDigest.isEqual(
+          expected.getBytes(StandardCharsets.US_ASCII),
+          offered.getBytes(StandardCharsets.US_ASCII))) return true;
+    }
+    return false;
   }
 
   public boolean running() {
@@ -88,7 +110,12 @@ public final class ProxyCore {
     Dialer.Tunnel tunnel = null;
     try (Socket c = client) {
       c.setSoTimeout(15000);
-      String first = Dialer.header(c.getInputStream()).split("\r\n")[0];
+      String headers = Dialer.header(c.getInputStream());
+      if (!authorized(headers)) {
+        reply(c, "407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"Cheems Core\"");
+        return;
+      }
+      String first = headers.split("\r\n")[0];
       String[] parts = first.split(" ");
       if (parts.length != 3 || !parts[0].equals("CONNECT")) {
         reply(c, "405 Method Not Allowed");
