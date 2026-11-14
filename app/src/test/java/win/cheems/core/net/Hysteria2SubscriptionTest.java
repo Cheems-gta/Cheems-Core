@@ -46,12 +46,12 @@ public final class Hysteria2SubscriptionTest {
     assertTrue(n.unsupported.contains("混淆"));
   }
 
-  @Test public void insecureCertificateSettingFailsClosed() throws Exception {
+  @Test public void providerInsecureHintDoesNotSilentlyTurnOffTls() throws Exception {
     Node n = Subscription.parse(
         "hysteria2://test-only@edge.example.com:443?insecure=1"
     ).get(0);
-    assertFalse(n.supported());
-    assertTrue(n.unsupported.contains("证书"));
+    assertTrue("candidate can try fully verified TLS", n.supported());
+    assertTrue("UI must explain provider insecure TLS hint", n.hasInsecureTlsFlag());
   }
 
   @Test public void incompleteNodeFailsClosed() throws Exception {
