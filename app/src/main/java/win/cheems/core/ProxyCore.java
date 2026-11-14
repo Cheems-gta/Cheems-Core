@@ -48,7 +48,7 @@ public final class ProxyCore {
     }
    }
    if(header.size()>=8192){send(out,"HTTP/1.1 431 Request Header Fields Too Large\r\n\r\n");return;}
-   String first=header.toString(StandardCharsets.ISO_8859_1).split("\\r?\\n",2)[0];
+   String first=new String(header.toByteArray(),StandardCharsets.ISO_8859_1).split("\\r?\\n",2)[0];
    String[] parts=first.split(" ");
    if(parts.length<3||!parts[0].equalsIgnoreCase("CONNECT")){send(out,"HTTP/1.1 405 Method Not Allowed\r\n\r\n");return;}
    String host;int port;
