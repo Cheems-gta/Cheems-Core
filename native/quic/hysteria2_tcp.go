@@ -43,8 +43,13 @@ func WriteTCPRequest(w io.Writer,address string) error {
  frame=append(frame,address...)
  frame=quicvarint.Append(frame,uint64(len(padding)))
  frame=append(frame,padding...)
- _,err:=w.Write(frame)
- return err
+ for len(frame)>0 {
+  n,err:=w.Write(frame)
+  if err!=nil { return err }
+  if n<=0 { return io.ErrShortWrite }
+  frame=frame[n:]
+ }
+ return nil
 }
 
 func ReadTCPResponse(r io.Reader) error {
