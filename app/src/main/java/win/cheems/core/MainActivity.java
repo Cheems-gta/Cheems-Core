@@ -57,7 +57,7 @@ public final class MainActivity extends Activity {
         });
     root.requestApplyInsets();
     root.addView(label("CHEEMS CORE", 28, purple));
-    root.addView(label("V0.2  /  独立节点代理实验版", 13, muted));
+    root.addView(label("V" + packageVersion() + " / 独立节点代理实验版", 13, muted));
     LinearLayout state = card(root);
     status = label("● 未启动", 23, ink);
     state.addView(status);
@@ -92,12 +92,18 @@ public final class MainActivity extends Activity {
         () -> {
           Node n = current();
           if (n == null) return;
-          if (Build.VERSION.SDK_INT >= 33
-              && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                  != android.content.pm.PackageManager.PERMISSION_GRANTED)
-            requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, 1);
-          CoreService.selected = n;
-          startForegroundService(new Intent(this, CoreService.class));
+          if (n.hasInsecureTlsFlag()) {
+            new AlertDialog.Builder(this)
+                .setTitle("Hysteria 2 证书提醒")
+                .setMessage("此节点的订阅要求跳过 TLS 证书验证。Cheems Core 不会自动跳过验证，"
+                    + "将使用正常的证书与域名校验尝试连接。如果服务端证书不可信，连接会失败。"
+                    + "请向服务商获取有效证书、正确的 SNI 或可信 CA 配置。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保持验证并尝试", (dialog, which) -> startProxy(n))
+                .show();
+          } else {
+            startProxy(n);
+          }
         });
     button(actions, "停止并关闭连接", () -> stopService(new Intent(this, CoreService.class)));
     actions.addView(
@@ -125,6 +131,24 @@ public final class MainActivity extends Activity {
             runOnUiThread(() -> message("本地配置无法读取，请重新导入"));
           }
         });
+  }
+
+  private String packageVersion() {
+    try {
+      return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+    } catch (Exception e) {
+      return "unknown";
+    }
+  }
+
+  private void startProxy(Node node) {
+    if (Build.VERSION.SDK_INT >= 33
+        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, 1);
+    }
+    CoreService.selected = node;
+    startForegroundService(new Intent(this, CoreService.class));
   }
 
   private TextView label(String text, int size, int color) {
@@ -343,7 +367,13 @@ public final class MainActivity extends Activity {
   private void refresh() {
     if (status == null) return;
     ProxyCore c = CoreService.core;
-    status.setText(c != null && c.running() ? "● 本地代理运行中" : "● 未启动");
+    boolean localRunning = c != null && c.running();
+    boolean hy2Disconnected = localRunning && CoreService.selected != null
+        && "hysteria2".equals(CoreService.selected.type) && !Hysteria2Native.isRunning();
+    status.setText(
+        CoreService.connecting ? "● 正在连接节点…" :
+        hy2Disconnected ? "● HY2 远端已断开" :
+        localRunning ? "● 本地代理运行中" : "● 未启动");
     metrics.setText(
         c == null
             ? "连接 0   ↑ 0 B   ↓ 0 B"
