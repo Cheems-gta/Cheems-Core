@@ -5,6 +5,7 @@ import android.content.*;
 import android.os.IBinder;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.security.SecureRandom;
 import win.cheems.core.net.Hysteria2Native;
 import win.cheems.core.net.Node;
 
@@ -12,6 +13,8 @@ public final class CoreService extends Service {
   static volatile Node selected;
   static volatile ProxyCore core;
   static volatile boolean connecting;
+  static volatile String localHttpPassword;
+  private String ownedHttpPassword;
   private ProxyCore ownedCore;
   private static final ArrayDeque<String> events = new ArrayDeque<>();
   private final AtomicBoolean launching = new AtomicBoolean();
@@ -30,7 +33,11 @@ public final class CoreService extends Service {
   public void onCreate() {
     super.onCreate();
     destroyed = false;
-    ownedCore = new ProxyCore(CoreService::log);
+    byte[] secret = new byte[32];
+    new SecureRandom().nextBytes(secret);
+    ownedHttpPassword = Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
+    localHttpPassword = ownedHttpPassword;
+    ownedCore = new ProxyCore(CoreService::log, ownedHttpPassword);
     core = ownedCore;
   }
 
@@ -97,6 +104,8 @@ public final class CoreService extends Service {
     connecting = false;
     if (ownedCore != null) ownedCore.stop();
     if (core == ownedCore) core = null;
+    if (ownedHttpPassword != null && ownedHttpPassword.equals(localHttpPassword))
+      localHttpPassword = null;
     // Stop synchronously so an old asynchronous shutdown cannot destroy
     // a newly selected node's native session. Go Stop cancels pending startup.
     try {
