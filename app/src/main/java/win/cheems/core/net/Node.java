@@ -35,7 +35,7 @@ public final class Node {
       reason = "当前独立内核尚不支持 Hysteria 2 端口跳跃";
     else if (type.equals("anytls"))
       reason = "AnyTLS 节点已识别，但当前版本尚未实现会话协议；不可连接。请等待真实协议实现和互通测试";
-    else if (!Arrays.asList("ss", "trojan", "socks5", "http").contains(type))
+    else if (!Arrays.asList("ss", "trojan", "socks5", "http", "hysteria2").contains(type))
       reason = "暂未实现 " + type + " 协议";
     else if (m.containsKey("plugin") && !value(m, "plugin", "").isEmpty()) reason = "暂不支持插件传输";
     else if (!Arrays.asList("tcp", "").contains(value(m, "network", "tcp")))
