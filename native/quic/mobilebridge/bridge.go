@@ -27,7 +27,7 @@ var (
 
 // Start authenticates and opens a local TCP-only SOCKS5 listener.
 // Must be called from an Android background thread.
-func Start(host string,port int,sni string,password string,localPort int,localSecret string)error{
+func Start(host string,port int,sni string,password string,localPort int,localSecret string,allowUnverifiedTLS bool,customCAPEM string,certificateSHA256 string)error{
  if host=="" || port<1 || port>65535 || localPort<1 || localPort>65535{
   return errors.New("invalid server or local port")
  }
@@ -49,6 +49,9 @@ func Start(host string,port int,sni string,password string,localPort int,localSe
   ServerName:sni,
   Password:password,
   Timeout:15*time.Second,
+  AllowUnverifiedTLS:allowUnverifiedTLS,
+  TrustedCAPEM:customCAPEM,
+  CertificateSHA256:certificateSHA256,
  })
  if err!=nil{
   recordFailure(startGeneration,err)
