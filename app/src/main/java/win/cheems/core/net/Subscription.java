@@ -74,6 +74,27 @@ public final class Subscription {
       }
       return new Node(m);
     }
+    if (scheme.equals("hysteria2") || scheme.equals("hy2")) {
+      URI u = new URI(link);
+      Map<String, Object> m = new LinkedHashMap<>();
+      m.put("type", "hysteria2");
+      m.put("server", u.getHost() == null ? "" : u.getHost());
+      m.put("port", u.getPort());
+      m.put("name", u.getRawFragment() == null ? "Hysteria 2 · " + u.getHost() : urlDecode(u.getRawFragment()));
+      m.put("password", u.getRawUserInfo() == null ? "" : urlDecode(u.getRawUserInfo()));
+      if (u.getRawQuery() != null) {
+        for (String part : u.getRawQuery().split("&")) {
+          String[] kv = part.split("=", 2);
+          String key = urlDecode(kv[0]), value = kv.length == 2 ? urlDecode(kv[1]) : "";
+          if (key.equals("sni") || key.equals("peer")) m.put("sni", value);
+          if (key.equals("obfs")) m.put("obfs", value);
+          if (key.equals("obfs-password")) m.put("obfs-password", value);
+          if (key.equals("insecure") || key.equals("allowInsecure"))
+            m.put("skip-cert-verify", value.equals("1") || value.equalsIgnoreCase("true"));
+        }
+      }
+      return new Node(m);
+    }
     if (!Arrays.asList("ss", "trojan", "socks5", "socks", "http", "https").contains(scheme)) {
       Map<String, Object> unsupported = new LinkedHashMap<>();
       unsupported.put("type", scheme);
