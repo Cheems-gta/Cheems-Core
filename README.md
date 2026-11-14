@@ -19,7 +19,7 @@ The native Hysteria 2 implementation is **unverified against a real Flybit node*
 
 ## Builds
 
-- `.github/workflows/android-quic-aar.yml`: tests Go code, builds the Android native AAR, verifies the generated Java bindings, tests/builds/lints the Android app, checks the APK contains `libgojni.so`, verifies debug signing, and uploads a checksummed `Cheems-Core-v0.3.1-hy2-alpha.apk` workflow artifact **only if the CI job passes**.
+- `.github/workflows/android-quic-aar.yml`: tests Go code, builds the Android native AAR, verifies the generated Java bindings, tests/builds/lints the Android app, checks the APK contains `libgojni.so`, verifies debug signing, and uploads a checksummed `Cheems-Core-v0.3.2-hy2-alpha.apk` workflow artifact **only if the CI job passes**.
 - `.github/workflows/android.yml`: legacy Java-only workflow for manual use; **its APK does not contain the Hysteria 2 native engine** and must not be confused with the native build.
 - Build tools: Java 17, Gradle 8.9, Android SDK 35, Android NDK 27.2.12479018, Go and `gomobile`.
 
@@ -40,3 +40,12 @@ Go tests include authentication framing, TCP request/response validation, partia
 - Both local proxy listeners enforce per-service credentials rather than trusting loopback as a private socket. The HTTP proxy's username/password can be copied from the app; its password changes when the service restarts.
 - Subscription parsing now repeats its 2 MB limit after Base64 decoding and reports malformed share links clearly.
 - Regression tests exercise HTTP Basic rejection and SOCKS5 auth success/rejection. Tests still cannot prove compatibility with a live Flybit server.
+
+## V0.3.2 HY2 alpha changes
+
+- The Android foreground service now monitors the native QUIC session after startup. If the Hysteria 2 tunnel drops, the stale local HTTP CONNECT listener is shut down instead of continuing to appear usable. This is disconnect handling, **not** automatic reconnection.
+- Native SOCKS5 credential cleanup uses an atomic compare-and-set to prevent a failed older connection attempt from clearing a newer session's token.
+- Android 13+ clipboard previews mark copied local proxy authentication credentials as sensitive. Clipboard contents are still accessible to software with permitted clipboard access; do not share the temporary password.
+- APK versionCode is raised to 5, with an explicitly distinct V0.3.2 alpha artifact.
+
+**Build and interoperability disclaimer:** Commit uploads alone do not confirm the newest GitHub Actions run passed. Hysteria 2 compatibility against actual Flybit endpoints, full Android VPN capture, UDP forwarding, AnyTLS, and automatic failover are still unverified or unimplemented.
