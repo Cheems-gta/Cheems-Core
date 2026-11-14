@@ -87,6 +87,19 @@ func Start(host string,port int,sni string,password string,localPort int)error{
    mu.Unlock()
   }
  }()
+ // A local listening socket is not proof the remote QUIC session is alive.
+ // Invalidate the native state when the peer closes the underlying tunnel.
+ go func(){
+  <-newSession.Transport.Done()
+  mu.Lock()
+  if server!=newServer {mu.Unlock();return}
+  server=nil
+  session=nil
+  running.Store(false)
+  lastError="Hysteria 2 QUIC connection closed"
+  mu.Unlock()
+  _=newServer.Close()
+ }()
  return nil
 }
 
