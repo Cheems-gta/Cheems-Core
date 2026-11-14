@@ -30,6 +30,13 @@ type Hysteria2Config struct {
  ServerName string
  Password string
  Timeout time.Duration
+ // TrustedCAPEM adds a supplied CA certificate without weakening hostname checks.
+ TrustedCAPEM string
+ // CertificateSHA256 pins the leaf certificate's SHA-256 fingerprint if present.
+ CertificateSHA256 string
+ // AllowUnverifiedTLS is permitted only after an explicit Android one-time warning.
+ // Prefer TrustedCAPEM or CertificateSHA256; this alone is vulnerable to MITM.
+ AllowUnverifiedTLS bool
 }
 
 func DialHysteria2(ctx context.Context, cfg Hysteria2Config) (*Hysteria2Session,error) {
@@ -42,7 +49,8 @@ func DialHysteria2(ctx context.Context, cfg Hysteria2Config) (*Hysteria2Session,
  if cfg.Timeout<=0 { cfg.Timeout=10*time.Second }
  ctx,cancel:=context.WithTimeout(ctx,cfg.Timeout)
  defer cancel()
- tlsConfig:=&tls.Config{ServerName:cfg.ServerName,NextProtos:[]string{"h3"},MinVersion:tls.VersionTLS13}
+ tlsConfig,err:=newHysteria2TLSConfig(cfg)
+ if err!=nil { return nil,err }
  conn,err:=quic.DialAddrEarly(ctx,cfg.Address,tlsConfig,&quic.Config{KeepAlivePeriod:15*time.Second,MaxIdleTimeout:60*time.Second,EnableDatagrams:true})
  if err!=nil { return nil,fmt.Errorf("Hysteria 2 QUIC handshake: %w",err) }
  transport:=&Transport{connection:conn}
