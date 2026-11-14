@@ -37,9 +37,9 @@ public class Hysteria2ImportTest {
   assertEquals("AB:CD:EF",n.certificateSHA256());
  }
  @Test public void importsInlineCaWithoutTrustingFilePaths() throws Exception {
-  String yaml="proxies:\\n  - name: CA-test\\n    type: hysteria2\\n"
-      +"    server: example.com\\n    port: 443\\n    password: secret\\n"
-      +"    ca-str: |\\n      -----BEGIN CERTIFICATE-----\\n      TEST\\n      -----END CERTIFICATE-----\\n";
+  String yaml="proxies:\n  - name: CA-test\n    type: hysteria2\n"
+      +"    server: example.com\n    port: 443\n    password: secret\n"
+      +"    ca-str: |\n      -----BEGIN CERTIFICATE-----\n      TEST\n      -----END CERTIFICATE-----\n";
   Node n=Subscription.parse(yaml).get(0);
   assertTrue(n.trustedCAPEM().contains("BEGIN CERTIFICATE"));
   assertTrue(new Node(java.util.Map.of("type","hysteria2","server","example.com",
