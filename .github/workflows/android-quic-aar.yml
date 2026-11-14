@@ -47,6 +47,9 @@ jobs:
           cp native/quic/cheems-quic.aar app/libs/
           unzip -p app/libs/cheems-quic.aar classes.jar > /tmp/cheems-bindings.jar
           jar tf /tmp/cheems-bindings.jar | grep -Fx "go/mobilebridge/Mobilebridge.class"
+          javap -classpath /tmp/cheems-bindings.jar go.mobilebridge.Mobilebridge > /tmp/cheems-native-api.txt
+          grep -Eq 'start\(java.lang.String, long, java.lang.String, java.lang.String, long\)' /tmp/cheems-native-api.txt
+          grep -Eq 'isRunning\(\)' /tmp/cheems-native-api.txt
           python3 - <<'PY'
           from pathlib import Path
           p=Path("app/build.gradle")
@@ -56,6 +59,34 @@ jobs:
           PY
           gradle :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --stacktrace
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify app/build/outputs/apk/debug/app-debug.apk
+          unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep -E '^lib/arm64-v8a/libgojni[.]so
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cheems-quic-integrated-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cheems-quic-android-aar
+          path: |
+            native/quic/cheems-quic.aar
+            native/quic/cheems-quic-sources.jar
+          if-no-files-found: error
+
+          unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep -E '^lib/armeabi-v7a/libgojni[.]so
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cheems-quic-integrated-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cheems-quic-android-aar
+          path: |
+            native/quic/cheems-quic.aar
+            native/quic/cheems-quic-sources.jar
+          if-no-files-found: error
+
       - uses: actions/upload-artifact@v4
         with:
           name: cheems-quic-integrated-apk
