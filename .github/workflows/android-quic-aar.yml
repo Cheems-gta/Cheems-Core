@@ -2,6 +2,7 @@ name: Build Cheems Core Native HY2 APK
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     paths:
       - 'native/quic/**'
       - 'app/**'
@@ -155,3 +156,4 @@ jobs:
             native/quic/cheems-quic.aar
             native/quic/cheems-quic-sources.jar
           if-no-files-found: error
+

@@ -41,13 +41,14 @@ public final class Hysteria2Native {
         ? node.trustedCAPEM() : customCAPEM;
     if (trustedCAPEM.length() > 64 * 1024)
       throw new IllegalArgumentException("Custom CA certificate exceeds 64 KiB");
+    String platformAndCustomCAPEM = PlatformTrust.withCustomCA(trustedCAPEM);
     byte[] nonce = new byte[32];
     new SecureRandom().nextBytes(nonce);
     String token = Base64.getUrlEncoder().withoutPadding().encodeToString(nonce);
     localToken.set(token);
     try {
       Method start = binding().getMethod("start", String.class, long.class, String.class, String.class, long.class, String.class, boolean.class, String.class, String.class);
-      start.invoke(null, node.host, (long) node.port, node.sni, node.password, (long) localPort, token, allowUnverifiedTLS, trustedCAPEM, node.certificateSHA256());
+      start.invoke(null, node.host, (long) node.port, node.sni, node.password, (long) localPort, token, allowUnverifiedTLS, platformAndCustomCAPEM, node.certificateSHA256());
     } catch (ClassNotFoundException e) {
       localToken.compareAndSet(token, null);
       throw new IllegalStateException("Hysteria 2 native AAR is not packaged in this APK", e);
@@ -73,3 +74,4 @@ public final class Hysteria2Native {
     catch (ReflectiveOperationException | LinkageError e) { return false; }
   }
 }
+
