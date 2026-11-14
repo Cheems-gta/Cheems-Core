@@ -90,7 +90,7 @@ func TestSOCKS5RejectsWrongSecret(t *testing.T){
  if _,err=io.ReadFull(conn,method);err!=nil{t.Fatal(err)}
  if method[0]!=5 || method[1]!=2{t.Fatalf("expected password auth: %v",method)}
  wrong:=[]byte("definitely-the-wrong-local-secret-12345")
- request:=append([]byte{1,5},[]byte("cheems")...)
+ request:=append([]byte{1,byte(len("cheems"))},[]byte("cheems")...)
  request=append(request,byte(len(wrong)))
  request=append(request,wrong...)
  if _,err=conn.Write(request);err!=nil{t.Fatal(err)}
