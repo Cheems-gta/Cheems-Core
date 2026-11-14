@@ -9,7 +9,7 @@ Experimental independent Android proxy client (Android 9+, Java UI with an optio
 - **Hysteria 2 / HY2 (native alpha):** Go QUIC + HTTP/3 authentication (expects HTTP 233), bidirectional TCP proxy streams and a loopback SOCKS5 bridge. The Android frontend routes HTTPS/HTTP CONNECT tunnels via this bridge when the native AAR is actually packaged.
 - Hysteria 2 SOCKS5 currently supports **TCP CONNECT only**. Datagram negotiation is enabled, but **UDP relay is not implemented**.
 - Other protocols such as AnyTLS, VMess/VLESS, SS2022, WebSockets, Salamander obfuscation and port hopping are **not implemented**. Unsupported nodes must be marked unavailable rather than silently falling back to direct.
-- TLS certificate and hostname checks are enforced. Nodes configured to bypass certificate validation are not accepted.
+- Hysteria 2 uses strict TLS certificate/hostname verification by default. Users can paste a trusted PEM CA for one connection or use a SHA-256 leaf-certificate pin supplied in the node configuration. Nodes explicitly marked skip-cert-verify may use an unverified connection only after a two-step, session-only security warning. Unverified connections without a pin are vulnerable to impersonation and are not recommended.
 
 ## Android networking limitation
 
@@ -19,7 +19,7 @@ The native Hysteria 2 implementation is **unverified against a real Flybit node*
 
 ## Builds
 
-- `.github/workflows/android-quic-aar.yml`: tests Go code, builds the Android native AAR, verifies the generated Java bindings, tests/builds/lints the Android app, checks the APK contains `libgojni.so`, verifies debug signing, and uploads a checksummed `Cheems-Core-v0.3.3-hy2-alpha.apk` workflow artifact **only if the CI job passes**.
+- `.github/workflows/android-quic-aar.yml`: tests Go code, builds the Android native AAR, verifies the generated Java bindings, tests/builds/lints the Android app, checks the APK contains `libgojni.so`, verifies debug signing, and uploads a checksummed `Cheems-Core-v0.3.4-hy2-tls-alpha.apk` workflow artifact **only if the CI job passes**.
 - `.github/workflows/android.yml`: legacy Java-only workflow for manual use; **its APK does not contain the Hysteria 2 native engine** and must not be confused with the native build.
 - Build tools: Java 17, Gradle 8.9, Android SDK 35, Android NDK 27.2.12479018, Go and `gomobile`.
 
@@ -29,7 +29,7 @@ The debug APK is test-signed; a production release requires a controlled release
 
 Go tests include authentication framing, TCP request/response validation, partial writes, and local SOCKS5 data relay with synthetic destinations. Android JVM tests cover HY2 Clash YAML and share-link parsing, including explicit rejection of unsupported configurations.
 
-**Outstanding**: independently confirm GitHub Actions succeeds; test authentication and actual TCP forwarding against a real, authorized Hysteria 2 service; implement and validate a TUN/VpnService bridge if system-wide VPN connectivity is required.
+**Outstanding**: a V0.3.4 CI build has succeeded, but authentication and actual TCP forwarding against a real, authorized Hysteria 2 service are NOT yet verified. Implement and test an Android VpnService/TUN bridge separately if full-device VPN is needed.
 
 
 ## V0.3.1 HY2 alpha changes
@@ -59,3 +59,12 @@ Go tests include authentication framing, TCP request/response validation, partia
 - Unit tests use synthetic loopback proxy interactions and a response body spy. These provide useful regression coverage but **do not establish real Flybit compatibility**.
 
 To validate on a phone after the CI artifact is verified: install the integrated V0.3.3 alpha, import the authorized subscription, select one supported Hysteria 2 node, start the local proxy, run the full forwarding verification, and inspect the diagnostic log for the failed stage. The app is **not** a system-wide VPN and still requires applications to explicitly configure a local proxy and authenticate. Never paste a subscription URL, node password, or local proxy password into an issue or public log.
+
+## V0.3.4 HY2 TLS diagnostics
+
+- Optional trusted CA in inline PEM form (`ca-str` or inline `ca` in the imported HY2 node, or pasted once in Android) extends the trust store while preserving hostname checks. File paths and malformed CA material are not silently trusted.
+- A node-provided `pinSHA256` / `pin-sha256` fingerprint pins the **leaf** server certificate; a mismatch blocks the connection. Do not confuse this with TLS client fingerprint selection.
+- `skip-cert-verify: true` is merely a provider hint. It **never automatically disables** verification. The user must choose a one-time high-risk option and confirm again; it does not become a persistent setting. Using this without a trusted fingerprint is not recommended.
+- The UI persists useful error status after rapid TLS/QUIC failures so that a failed attempt does not look like an untouched “not started” state.
+- Go regression tests cover strict TLS defaults, malformed trust inputs, leaf certificate pin matching, and CA hostname validation; Android JVM tests cover importing pin and CA fields.
+- This remains a local proxy, not Android system VPN, and build success does not establish connectivity to Flybit. No credentials, subscription URLs, or TLS private keys should be shared in issue reports.
