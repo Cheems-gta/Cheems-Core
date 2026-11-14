@@ -47,7 +47,12 @@ public final class Hysteria2Native {
     } catch (InvocationTargetException e) {
       localToken = null;
       Throwable cause = e.getCause();
-      throw new IllegalStateException("Hysteria 2 native start failed", cause);
+      String detail = cause == null ? "未知错误" : cause.getMessage();
+      if (detail == null || detail.isBlank()) detail = "未知错误";
+      throw new IllegalStateException("Hysteria 2 建连失败：" + detail, cause);
+    } catch (ReflectiveOperationException | LinkageError e) {
+      localToken = null;
+      throw new IllegalStateException("Hysteria 2 Android 原生桥接异常", e);
     }
   }
 
