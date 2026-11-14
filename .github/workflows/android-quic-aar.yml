@@ -40,6 +40,13 @@ jobs:
           go install golang.org/x/mobile/cmd/gomobile@latest
           go install golang.org/x/mobile/cmd/gobind@latest
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      # This module's go.sum is generated in CI. Resolve it BEFORE invoking
+      # the isolated test step; otherwise Go refuses to load quic-go imports.
+      - name: Resolve Go module checksums before tests
+        working-directory: native/quic
+        run: |
+          go mod tidy
+          go mod verify
       - name: Run Go tests with persistent failure report
         id: go_tests
         working-directory: native/quic
