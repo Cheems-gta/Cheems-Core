@@ -3,6 +3,7 @@ package win.cheems.core.net;
 import static org.junit.Assert.*;
 
 import java.io.*;
+import java.lang.reflect.Field;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -17,6 +18,14 @@ public final class Hysteria2DialerTest {
     listener.setReuseAddress(true);
     listener.bind(new InetSocketAddress("127.0.0.1", Hysteria2Native.LOCAL_SOCKS_PORT));
     listener.setSoTimeout(5000);
+    // The native HY2 bridge now requires an ephemeral local SOCKS password.
+    // Use a synthetic token; never load a real provider subscription in tests.
+    final String fakeLocalToken = "synthetic-hy2-loopback-secret-0123456789";
+    Field tokenField = Hysteria2Native.class.getDeclaredField("localToken");
+    tokenField.setAccessible(true);
+    @SuppressWarnings("unchecked")
+    AtomicReference<String> tokenReference = (AtomicReference<String>) tokenField.get(null);
+    String previousToken = tokenReference.getAndSet(fakeLocalToken);
     Thread peer = new Thread(() -> {
       try (Socket conn = listener.accept()) {
         conn.setSoTimeout(5000);
@@ -26,8 +35,18 @@ public final class Hysteria2DialerTest {
         int nMethods = in.readUnsignedByte();
         byte[] methods = new byte[nMethods];
         in.readFully(methods);
-        assertArrayEquals(new byte[] {0}, methods);
-        out.write(new byte[] {5, 0});
+        assertArrayEquals(new byte[] {2}, methods);
+        out.write(new byte[] {5, 2});
+        out.flush();
+        assertEquals(1, in.readUnsignedByte());
+        byte[] user = new byte[in.readUnsignedByte()];
+        in.readFully(user);
+        assertEquals("cheems", new String(user, StandardCharsets.US_ASCII));
+        byte[] pass = new byte[in.readUnsignedByte()];
+        in.readFully(pass);
+        assertEquals(fakeLocalToken, new String(pass, StandardCharsets.US_ASCII));
+        out.write(new byte[] {1, 0});
+        out.flush();
         assertEquals(5, in.readUnsignedByte());
         assertEquals(1, in.readUnsignedByte());
         assertEquals(0, in.readUnsignedByte());
@@ -65,6 +84,7 @@ public final class Hysteria2DialerTest {
     } finally {
       listener.close();
       peer.join(6000);
+      tokenReference.set(previousToken);
     }
     if (failure.get() != null) throw new AssertionError("Fake SOCKS5 relay failed", failure.get());
     assertEquals("target.example:443", destination.get());
