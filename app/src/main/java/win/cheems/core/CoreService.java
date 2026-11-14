@@ -70,6 +70,10 @@ public final class CoreService extends Service {
                   return;
                 }
                 core.start(node);
+                if (destroyed) {
+                  core.stop();
+                  if ("hysteria2".equals(node.type)) Hysteria2Native.stop();
+                }
               } catch (Exception | LinkageError e) {
                 String message = e.getMessage();
                 log("代理启动失败：" + (message == null ? e.getClass().getSimpleName() : message));
