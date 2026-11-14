@@ -73,8 +73,7 @@ public final class MainActivity extends Activity {
     spinner.setOnItemSelectedListener(
         new android.widget.AdapterView.OnItemSelectedListener() {
           public void onItemSelected(android.widget.AdapterView<?> a, View v, int p, long id) {
-            if (selected != p && CoreService.core != null &&
-                (CoreService.core.running() || Hysteria2Native.isRunning())) {
+            if (selected >= 0 && selected != p && CoreService.core != null) {
               stopService(new Intent(MainActivity.this, CoreService.class));
               CoreService.log("节点已切换，请重新启动代理");
             }
