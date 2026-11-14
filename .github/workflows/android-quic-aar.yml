@@ -64,6 +64,7 @@ jobs:
           p=Path("app/build.gradle")
           s=p.read_text()
           s=s.replace('dependencies {', 'dependencies {\n implementation files("libs/cheems-quic.aar")', 1)
+          s=s.replace("versionCode 2; versionName '0.2.0'", "versionCode 3; versionName '0.3.0-hy2-alpha'")
           p.write_text(s)
           PY
           gradle :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --stacktrace
