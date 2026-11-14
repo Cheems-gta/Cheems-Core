@@ -48,3 +48,19 @@ that a particular provider certificate or network is valid.
 
 The native APK workflow runs automatically only on main. Development branch
 pushes may run transport checks, but do not automatically package an APK.
+
+## Protected network checkpoint
+
+The Go HY2 configuration now accepts a physical-network resolver and socket
+protection callback. A rejected protection request or DNS failure stops the
+connection without falling back to another resolver. The mobile bridge exposes
+`StartWithNetwork`; existing local-proxy callers keep their previous API.
+The future Android VPN service still needs to implement and call this interface.
+No TUN or global VPN capability is claimed by this checkpoint.
+
+A local HTTP/3 test peer verifies TLS trust, HY2 authentication, bidirectional
+TCP stream payload, wrong-password rejection and UDP socket cleanup. Additional
+tests verify protection rejection, resolver failure and immediate cancellation
+of startup by Stop. Go race tests and vet pass. These tests do not establish
+Flybit interoperability, QUIC obfuscation, congestion-control compatibility or
+Android device stability.
