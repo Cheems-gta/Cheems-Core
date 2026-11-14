@@ -12,7 +12,8 @@ public final class Subscription {
   public static final int MAX_BYTES = 2 * 1024 * 1024, MAX_NODES = 2000;
 
   public static List<Node> parse(String text) throws Exception {
-    if (text.length() > MAX_BYTES) throw new IllegalArgumentException("订阅超过 2 MB");
+    if (text == null || text.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES)
+      throw new IllegalArgumentException("订阅为空或超过 2 MB");
     text = text.trim();
     if (!text.contains("://") && !text.contains("proxies") && !text.startsWith("[")) {
       try {
@@ -20,6 +21,9 @@ public final class Subscription {
       } catch (Exception ignored) {
       }
     }
+    // Base64 decoding can enlarge the payload; repeat the size check after decoding.
+    if (text.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES)
+      throw new IllegalArgumentException("解码后的订阅超过 2 MB");
     List<Node> result = new ArrayList<>();
     if (text.startsWith("proxies:")
         || text.contains("\nproxies:")
@@ -53,7 +57,10 @@ public final class Subscription {
   }
 
   private static Node parseUri(String link) throws Exception {
-    String scheme = link.substring(0, link.indexOf("://")).toLowerCase(Locale.ROOT);
+    int separator = link.indexOf("://");
+    if (separator <= 0)
+      throw new IllegalArgumentException("节点分享链接缺少协议头（例如 hysteria2://）");
+    String scheme = link.substring(0, separator).toLowerCase(Locale.ROOT);
     if (scheme.equals("anytls")) {
       URI u = new URI(link);
       Map<String, Object> m = new LinkedHashMap<>();
