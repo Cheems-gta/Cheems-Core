@@ -130,6 +130,17 @@ public final class MainActivity extends Activity {
     events.addView(label("03  运行记录", 17, ink));
     logs = label("等待导入节点", 12, muted);
     events.addView(logs);
+    button(events, "复制诊断运行记录", () -> {
+      String entries = CoreService.logs();
+      if (entries.isBlank()) {
+        message("暂时没有可复制的运行记录。");
+        return;
+      }
+      ClipboardManager clipboard =
+          (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+      clipboard.setPrimaryClip(ClipData.newPlainText("Cheems Core diagnostic", entries));
+      message("已复制运行记录。发送之前请检查并删去任何不希望分享的信息。");
+    });
     root.addView(
         label(
             "已实现：SS AEAD · Trojan TCP/TLS · SOCKS5 · HTTP(S)\n"
