@@ -27,11 +27,12 @@ var (
 
 // Start authenticates and opens a local TCP-only SOCKS5 listener.
 // Must be called from an Android background thread.
-func Start(host string,port int,sni string,password string,localPort int)error{
+func Start(host string,port int,sni string,password string,localPort int,localSecret string)error{
  if host=="" || port<1 || port>65535 || localPort<1 || localPort>65535{
   return errors.New("invalid server or local port")
  }
  if password==""{return errors.New("Hysteria 2 password required")}
+ if len(localSecret)<24 || len(localSecret)>255 {return errors.New("local SOCKS5 secret required")}
  mu.Lock()
  if starting || server!=nil{
   mu.Unlock()
@@ -53,7 +54,7 @@ func Start(host string,port int,sni string,password string,localPort int)error{
   recordFailure(startGeneration,err)
   return err
  }
- newServer,err:=quictransport.ListenSOCKS5(newSession,fmt.Sprintf("127.0.0.1:%d",localPort))
+ newServer,err:=quictransport.ListenSOCKS5(newSession,fmt.Sprintf("127.0.0.1:%d",localPort),localSecret)
  if err!=nil{
   _=newSession.Close()
   recordFailure(startGeneration,err)
