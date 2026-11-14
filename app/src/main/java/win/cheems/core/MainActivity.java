@@ -114,8 +114,14 @@ public final class MainActivity extends Activity {
       }
       ClipboardManager clipboard =
           (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-      clipboard.setPrimaryClip(ClipData.newPlainText(
-          "Cheems Core HTTP Proxy", "用户名：cheems\n密码：" + secret));
+      ClipData clip = ClipData.newPlainText(
+          "Cheems Core HTTP Proxy", "用户名：cheems\n密码：" + secret);
+      if (Build.VERSION.SDK_INT >= 33) {
+        android.os.PersistableBundle extras = new android.os.PersistableBundle();
+        extras.putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE, true);
+        clip.getDescription().setExtras(extras);
+      }
+      clipboard.setPrimaryClip(clip);
       message("已复制本次会话的代理用户名和密码。请仅在你信任的应用中配置代理。");
     });
     actions.addView(
