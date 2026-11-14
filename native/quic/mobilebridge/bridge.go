@@ -1,5 +1,5 @@
-// Package mobilebridge exposes a minimal gomobile-compatible API to Android.
-// The library is not an Android VPNService and supports only local SOCKS5 TCP.
+// Package mobilebridge exposes a gomobile API for the Android application.
+// This is a loopback TCP proxy, not a system-wide Android VPNService.
 package mobilebridge
 
 import (
@@ -9,6 +9,7 @@ import (
  "net"
  "strconv"
  "sync"
+ "sync/atomic"
  "time"
 
  quictransport "github.com/Cheems-gta/Cheems-Core/native/quic"
@@ -18,47 +19,103 @@ var (
  mu sync.Mutex
  session *quictransport.Hysteria2Session
  server *quictransport.SOCKS5Server
+ starting bool
+ generation uint64
+ running atomic.Bool
  lastError string
 )
 
-// Start blocks until HTTP/3 authentication succeeds and the local SOCKS5
-// listener is ready. It must run on an Android background thread.
-func Start(host string, port int, sni string, password string, localPort int) error {
- mu.Lock()
- defer mu.Unlock()
- if server != nil { return errors.New("Hysteria 2 already started") }
- if host=="" || port<1 || port>65535 || localPort<1 || localPort>65535 {
+// Start authenticates and opens a local TCP-only SOCKS5 listener.
+// Must be called from an Android background thread.
+func Start(host string,port int,sni string,password string,localPort int)error{
+ if host=="" || port<1 || port>65535 || localPort<1 || localPort>65535{
   return errors.New("invalid server or local port")
  }
+ if password==""{return errors.New("Hysteria 2 password required")}
+ mu.Lock()
+ if starting || server!=nil{
+  mu.Unlock()
+  return errors.New("Hysteria 2 is already starting or running")
+ }
+ starting=true
+ startGeneration:=generation
+ mu.Unlock()
+
  ctx,cancel:=context.WithTimeout(context.Background(),15*time.Second)
  defer cancel()
- s,err:=quictransport.DialHysteria2(ctx,quictransport.Hysteria2Config{
+ newSession,err:=quictransport.DialHysteria2(ctx,quictransport.Hysteria2Config{
   Address:net.JoinHostPort(host,strconv.Itoa(port)),
-  ServerName:sni,Password:password,Timeout:15*time.Second,
+  ServerName:sni,
+  Password:password,
+  Timeout:15*time.Second,
  })
- if err!=nil { lastError=err.Error();return err }
- listener,err:=quictransport.ListenSOCKS5(s,fmt.Sprintf("127.0.0.1:%d",localPort))
- if err!=nil { s.Close();lastError=err.Error();return err }
- session=s
- server=listener
+ if err!=nil{
+  recordFailure(startGeneration,err)
+  return err
+ }
+ newServer,err:=quictransport.ListenSOCKS5(newSession,fmt.Sprintf("127.0.0.1:%d",localPort))
+ if err!=nil{
+  _=newSession.Close()
+  recordFailure(startGeneration,err)
+  return err
+ }
+ mu.Lock()
+ starting=false
+ if generation!=startGeneration{
+  mu.Unlock()
+  _=newServer.Close()
+  _=newSession.Close()
+  return errors.New("Hysteria 2 startup canceled")
+ }
+ session=newSession
+ server=newServer
+ running.Store(true)
  lastError=""
- go func(){_ = listener.Serve()}()
+ mu.Unlock()
+ go func(){
+  if err:=newServer.Serve();err!=nil{
+   mu.Lock()
+   if server==newServer{
+    server=nil
+    session=nil
+    running.Store(false)
+    lastError="SOCKS5 listener stopped unexpectedly"
+    mu.Unlock()
+    _=newSession.Close()
+    return
+   }
+   mu.Unlock()
+  }
+ }()
  return nil
 }
 
-func Stop() {
+func recordFailure(startGeneration uint64,err error){
  mu.Lock()
  defer mu.Unlock()
- if server!=nil { _=server.Close();server=nil }
- if session!=nil { _=session.Close();session=nil }
+ starting=false
+ if generation==startGeneration{lastError=err.Error()}
 }
 
-func IsRunning() bool {
- mu.Lock();defer mu.Unlock()
- return server!=nil
+// Stop invalidates even an in-progress startup; never waits for network dial
+// with the mutex held. Both calls are safe to repeat.
+func Stop(){
+ mu.Lock()
+ generation++
+ oldServer:=server
+ oldSession:=session
+ server=nil
+ session=nil
+ running.Store(false)
+ mu.Unlock()
+ if oldServer!=nil{_ = oldServer.Close()}
+ if oldSession!=nil{_ = oldSession.Close()}
 }
 
-func LastError() string {
- mu.Lock();defer mu.Unlock()
+func IsRunning()bool{return running.Load()}
+
+func LastError()string{
+ mu.Lock()
+ defer mu.Unlock()
  return lastError
 }
