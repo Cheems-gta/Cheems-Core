@@ -55,7 +55,7 @@ public final class CoreService extends VpnService {
             }
             if (destroyed || core != ownedCore) return;
             if (!Hysteria2Native.isRunning()) {
-              log("Hysteria 2 远端连接已中断，正在关闭失效的本地代理");
+              log("原生节点连接已中断，正在关闭失效代理");
               stopSelfResult(startId);
               return;
             }
@@ -112,30 +112,31 @@ public final class CoreService extends VpnService {
                   throw new IllegalStateException("请选择有效且受支持的节点");
                 }
                 if (destroyed) return;
-                if ("hysteria2".equals(node.type)) {
+                boolean nativeNode = "hysteria2".equals(node.type) || "anytls".equals(node.type);
+                if (nativeNode) {
                   if (!Hysteria2Native.isPackaged()) {
-                    throw new IllegalStateException("当前 APK 未打包 Hysteria 2 原生内核");
+                    throw new IllegalStateException("当前 APK 未打包原生协议内核");
                   }
-                  log("正在通过 QUIC 连接 Hysteria 2 服务端…");
+                  log("正在连接 " + node.type.toUpperCase(java.util.Locale.ROOT) + " 节点…");
                   if (allowUnverifiedTLS)
-                    log("安全提示：本次 HY2 连接跳过默认 CA / 域名校验；如有证书指纹仍会检查指纹");
+                    log("安全提示：本次连接按用户确认跳过常规 TLS 校验；配置的证书指纹仍会检查");
                   else if (customCAPEM != null && !customCAPEM.isBlank())
-                    log("本次 HY2 连接使用自定义 CA，并继续校验服务器名称");
+                    log("本次节点连接使用自定义 CA，并继续校验服务器名称");
                   Hysteria2Native.start(node, Hysteria2Native.LOCAL_SOCKS_PORT,
                       allowUnverifiedTLS, customCAPEM, this);
                   establishVPNTunnel();
                 }
                 if (destroyed) {
-                  if ("hysteria2".equals(node.type)) Hysteria2Native.stop();
+                  if (nativeNode) Hysteria2Native.stop();
                   return;
                 }
                 ownedCore.start(node);
                 updateConnecting(false);
                 lastFailure = null;
                 log("节点已连接，本地 HTTP CONNECT 代理启动成功");
-                if ("hysteria2".equals(node.type) && !destroyed) {
+                if (nativeNode && !destroyed) {
                   if (!Hysteria2Native.isRunning()) {
-                    log("Hysteria 2 连接已丢失，本地代理将停止");
+                    log("原生节点连接已丢失，代理将停止");
                     stopSelfResult(id);
                     return;
                   }
@@ -143,7 +144,7 @@ public final class CoreService extends VpnService {
                 }
                 if (destroyed) {
                   ownedCore.stop();
-                  if ("hysteria2".equals(node.type)) Hysteria2Native.stop();
+                  if (nativeNode) Hysteria2Native.stop();
                 }
               } catch (Exception | LinkageError e) {
                 updateConnecting(false);
@@ -153,7 +154,7 @@ public final class CoreService extends VpnService {
                 if (lower.contains("unknown authority"))
                   lastFailure = "证书不受信任；请核对 SNI，使用可信 CA 或服务商证书指纹";
                 else if (lower.contains("no recent network activity") || lower.contains("timeout"))
-                  lastFailure = "QUIC 握手超时；请检查当前网络的 UDP 连通性和节点地址";
+                  lastFailure = "节点连接超时；请检查网络、协议端口和地址";
                 else if (lower.contains("fingerprint mismatch"))
                   lastFailure = "服务器证书指纹不匹配，已拒绝连接";
                 else lastFailure = "节点连接失败；查看运行记录";

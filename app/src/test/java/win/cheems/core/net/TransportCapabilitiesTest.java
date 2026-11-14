@@ -10,10 +10,12 @@ public class TransportCapabilitiesTest {
     }
   }
   @Test public void importedProtocolsMustNotClaimWorkingConnections() {
-    for (String p : new String[]{"hysteria2","hy2","anytls"}) {
+    for (String p : new String[]{"hysteria2","hy2"}) {
       assertEquals(TransportCapabilities.Status.PARSE_ONLY,TransportCapabilities.status(p));
       assertFalse(p,TransportCapabilities.canDialTcp(p));
     }
+    assertEquals(TransportCapabilities.Status.TCP_READY,TransportCapabilities.status("anytls"));
+    assertTrue(TransportCapabilities.canDialTcp("anytls"));
   }
   @Test public void quicRequirementsAreExplicit() {
     assertTrue(TransportCapabilities.requiresQuic("hysteria2"));
@@ -26,3 +28,4 @@ public class TransportCapabilitiesTest {
       assertFalse(TransportCapabilities.canDialUdp(p));
   }
 }
+

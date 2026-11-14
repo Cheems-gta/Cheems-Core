@@ -31,14 +31,15 @@ public final class Dialer {
     Socket socket = new Socket();
     track.accept(socket);
     try {
+      boolean internalNative = "hysteria2".equals(node.type) || "anytls".equals(node.type);
       socket.connect(
-          "hysteria2".equals(node.type)
+          internalNative
               ? new InetSocketAddress("127.0.0.1", Hysteria2Native.LOCAL_SOCKS_PORT)
               : new InetSocketAddress(node.host, node.port),
           10000);
       socket.setSoTimeout(15000);
       socket.setTcpNoDelay(true);
-      if (!"hysteria2".equals(node.type) && node.tls()) {
+      if (!internalNative && node.tls()) {
         SSLSocket tls =
             (SSLSocket)
                 ((SSLSocketFactory) SSLSocketFactory.getDefault())
@@ -71,18 +72,19 @@ public final class Dialer {
           out.flush();
           break;
         case "hysteria2":
+        case "anytls":
         case "socks5":
-          boolean internalHy2 = "hysteria2".equals(node.type);
-          boolean auth = internalHy2 || !node.username.isEmpty();
+          boolean internalNativeProxy = internalNative;
+          boolean auth = internalNativeProxy || !node.username.isEmpty();
           out.write(auth ? new byte[] {5, 1, 2} : new byte[] {5, 1, 0});
           out.flush();
           byte[] method = Aead.readFully(in, 2);
           if (method[0] != 5 || method[1] != (auth ? 2 : 0))
             throw new IOException("SOCKS authentication method rejected");
           if (auth) {
-            String authUser = internalHy2 ? "cheems" : node.username;
-            String authPass = internalHy2 ? Hysteria2Native.localSocksToken() : node.password;
-            if (internalHy2 && authPass.isEmpty()) throw new IOException("HY2 internal SOCKS session unavailable");
+            String authUser = internalNativeProxy ? "cheems" : node.username;
+            String authPass = internalNativeProxy ? Hysteria2Native.localSocksToken() : node.password;
+            if (internalNativeProxy && authPass.isEmpty()) throw new IOException("native internal SOCKS session unavailable");
             byte[] user = authUser.getBytes(StandardCharsets.UTF_8),
                 pass = authPass.getBytes(StandardCharsets.UTF_8);
             if (user.length > 255 || pass.length > 255)
@@ -183,3 +185,4 @@ public final class Dialer {
     throw new IOException("Header too large");
   }
 }
+

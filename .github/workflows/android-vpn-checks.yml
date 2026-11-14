@@ -56,6 +56,11 @@ jobs:
           go mod tidy
           gomobile init
           gomobile bind -target=android/arm,android/arm64 -javapkg go -androidapi 28 -o cheems-quic.aar ./mobilebridge
+          unzip -p cheems-quic.aar classes.jar > /tmp/cheems-bindings.jar
+          javap -classpath /tmp/cheems-bindings.jar go.mobilebridge.Mobilebridge > /tmp/cheems-native-api.txt
+          grep -Eq 'startWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startAnyTLSWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startTunnel\(long\)' /tmp/cheems-native-api.txt
       - name: Compile and lint Android sources (no APK packaging)
         run: |
           mkdir -p app/libs

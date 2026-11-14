@@ -99,7 +99,7 @@ public final class MainActivity extends Activity {
           if (n == null) return;
           if (n.hasInsecureTlsFlag()) {
             new AlertDialog.Builder(this)
-                .setTitle("HY2 证书验证方式")
+                .setTitle("节点 TLS 证书验证方式")
                 .setMessage("订阅要求跳过证书验证，但这可能允许他人冒充节点。"
                     + "优先使用可信 CA 或证书指纹。以下选择仅对本次连接有效。")
                 .setItems(new String[] {
@@ -109,7 +109,7 @@ public final class MainActivity extends Activity {
                 }, (dialog, which) -> {
                   if (which == 0) startProxy(n, false, "");
                   else if (which == 1) askTrustedCA(n);
-                  else confirmUnverifiedHY2(n);
+                  else confirmUnverifiedTLS(n);
                 })
                 .setNegativeButton("取消", null)
                 .show();
@@ -137,7 +137,7 @@ public final class MainActivity extends Activity {
       message("已复制本次会话的代理用户名和密码。请仅在你信任的应用中配置代理。");
     });
     actions.addView(
-        label("HY2 节点会建立 Android 全局 VPN（TCP、DNS 与服务端支持的 UDP 经节点转发）。本地 HTTP CONNECT 代理仍监听 127.0.0.1:8899；其他协议尚未接入全局隧道。", 13, muted));
+        label("HY2 建立全局 VPN，TCP 与 DNS 经节点转发；其他 UDP 取决于节点支持。AnyTLS 当前接入 TCP 与 DNS-over-TCP。两者都保留本地 HTTP CONNECT 入口；其他协议尚未接入全局隧道。", 13, muted));
     LinearLayout events = card(root);
     events.addView(label("03  运行记录", 17, ink));
     logs = label("等待导入节点", 12, muted);
@@ -156,8 +156,8 @@ public final class MainActivity extends Activity {
     root.addView(
         label(
             "已实现：SS AEAD · Trojan TCP/TLS · SOCKS5 · HTTP(S)\n"
-                + "HY2：实验性 TCP 转发；默认验证证书，可本次导入可信 CA 或明确确认后跳过验证。\n"
-                + "暂不支持：VMess、VLESS、AnyTLS、SS 2022、插件、UDP。\n"
+                + "HY2：实验性 VPN，支持 TCP 与 DNS；其他 UDP 取决于节点。AnyTLS：实验性 TCP VPN。\n"
+                + "暂不支持：VMess、VLESS、SS 2022、协议插件和通用 AnyTLS UDP。\n"
                 + "节点凭据仅加密保存在本机，不上传到项目仓库。",
             12,
             muted));
@@ -209,9 +209,9 @@ public final class MainActivity extends Activity {
         .show();
   }
 
-  private void confirmUnverifiedHY2(Node node) {
+  private void confirmUnverifiedTLS(Node node) {
     new AlertDialog.Builder(this)
-        .setTitle("高风险：跳过 HY2 证书验证")
+        .setTitle("高风险：跳过节点证书验证")
         .setMessage("如果没有预先可信的证书指纹，攻击者可能冒充代理服务器，"
             + "甚至窃取连接凭据。这不会永久修改设置，也不会影响其他节点。"
             + "只在你确认信任当前网络和节点服务商时使用。")
@@ -222,13 +222,15 @@ public final class MainActivity extends Activity {
   }
 
   private void startProxy(Node node, boolean allowUnverifiedTLS, String trustedCAPEM) {
-    Intent prepare=VpnService.prepare(this);
-    if(prepare!=null) {
-      pendingVpnNode=node;
-      pendingAllowUnverifiedTLS=allowUnverifiedTLS;
-      pendingTrustedCAPEM=trustedCAPEM;
-      startActivityForResult(prepare,VPN_PERMISSION_REQUEST);
-      return;
+    if (nativeProtocol(node)) {
+      Intent prepare=VpnService.prepare(this);
+      if(prepare!=null) {
+        pendingVpnNode=node;
+        pendingAllowUnverifiedTLS=allowUnverifiedTLS;
+        pendingTrustedCAPEM=trustedCAPEM;
+        startActivityForResult(prepare,VPN_PERMISSION_REQUEST);
+        return;
+      }
     }
     launchVpnService(node,allowUnverifiedTLS,trustedCAPEM);
   }
@@ -317,8 +319,8 @@ public final class MainActivity extends Activity {
       message(n.unsupported);
       return null;
     }
-    if ("hysteria2".equals(n.type) && !Hysteria2Native.isPackaged()) {
-      message("当前 APK 不含 Hysteria 2 原生内核，请使用带 QUIC AAR 的集成构建版。");
+    if (nativeProtocol(n) && !Hysteria2Native.isPackaged()) {
+      message("当前 APK 未集成原生协议内核，请使用带 Native AAR 的构建版。");
       return null;
     }
     return n;
@@ -334,11 +336,15 @@ public final class MainActivity extends Activity {
     int supported = 0;
     Map<String, Integer> types = new TreeMap<>();
     for (Node n : nodes) {
-      if (n.supported() && (!"hysteria2".equals(n.type) || Hysteria2Native.isPackaged())) supported++;
+      if (n.supported() && (!nativeProtocol(n) || Hysteria2Native.isPackaged())) supported++;
       types.put(n.type, types.getOrDefault(n.type, 0) + 1);
     }
     summary.setText(
         "共 " + nodes.size() + " 个 · 可尝试的协议配置 " + supported + " 个\n" + types + "\n证书、认证和真实连通性尚未验证");
+  }
+
+  private static boolean nativeProtocol(Node n) {
+    return "hysteria2".equals(n.type) || "anytls".equals(n.type);
   }
 
   private void importDialog() {
@@ -455,8 +461,8 @@ public final class MainActivity extends Activity {
       message("请先启动当前所选节点的代理，再验证完整的 HTTP CONNECT 转发。");
       return;
     }
-    if ("hysteria2".equals(node.type) && !Hysteria2Native.isRunning()) {
-      message("本地代理虽然可能正在运行，但 Hysteria 2 原生 QUIC 连接已中断。");
+    if (nativeProtocol(node) && !Hysteria2Native.isRunning()) {
+      message("本地代理虽然可能正在运行，但原生节点会话已中断。");
       return;
     }
     String secret = CoreService.localHttpPassword;
@@ -489,11 +495,11 @@ public final class MainActivity extends Activity {
     if (status == null) return;
     ProxyCore c = CoreService.core;
     boolean localRunning = c != null && c.running();
-    boolean hy2Disconnected = localRunning && CoreService.selected != null
-        && "hysteria2".equals(CoreService.selected.type) && !Hysteria2Native.isRunning();
+    boolean nativeDisconnected = localRunning && CoreService.selected != null
+        && nativeProtocol(CoreService.selected) && !Hysteria2Native.isRunning();
     status.setText(
         CoreService.connecting ? "● 正在连接节点…" :
-        hy2Disconnected ? "● HY2 远端已断开" :
+        nativeDisconnected ? "● 原生节点已断开" :
         localRunning ? "● 本地代理运行中" :
         CoreService.lastFailure != null ? "● " + CoreService.lastFailure : "● 未启动");
     metrics.setText(

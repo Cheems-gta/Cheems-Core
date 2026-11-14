@@ -31,10 +31,10 @@ func StartTunnel(fd int64) error {
 		return errors.New("invalid TUN file descriptor")
 	}
 	mu.Lock()
-	current, network := session, startNetwork
+	current, udpSession, network := activeTCP, session, startNetwork
 	mu.Unlock()
 	if current == nil || network == nil {
-		return errors.New("authenticated HY2 session with protected physical network required")
+		return errors.New("authenticated TCP proxy session with protected physical network required")
 	}
 	tunnelState.Lock()
 	defer tunnelState.Unlock()
@@ -62,7 +62,7 @@ func StartTunnel(fd int64) error {
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	handler := &vpnFlowHandler{session: current}
+	handler := &vpnFlowHandler{tcp: current, udp: udpSession}
 	stack, err := tun.NewStack("go", tun.StackOptions{Context: ctx, Tun: device, TunOptions: options, Handler: handler, UDPTimeout: 2 * time.Minute, ICMPTimeout: time.Minute})
 	if err != nil {
 		cancel()
@@ -106,7 +106,8 @@ func StopTunnel() {
 }
 
 type vpnFlowHandler struct {
-	session *quictransport.Hysteria2Session
+	tcp tcpBackend
+	udp *quictransport.Hysteria2Session
 }
 
 func (h *vpnFlowHandler) JudgeFlow(uint8, netip.AddrPort, netip.AddrPort, []byte) tun.FlowVerdict {
@@ -118,7 +119,7 @@ func (h *vpnFlowHandler) NewConnectionEx(ctx context.Context, conn net.Conn, sou
 	if onClose != nil {
 		defer onClose(nil)
 	}
-	upstream, err := h.session.OpenTCP(ctx, destination.AddrString(), int(destination.Port))
+	upstream, err := h.tcp.OpenTCP(ctx, destination.AddrString(), int(destination.Port))
 	if err != nil {
 		return
 	}
@@ -141,7 +142,10 @@ func (h *vpnFlowHandler) NewPacketConnectionEx(ctx context.Context, conn N.Packe
 	if onClose != nil {
 		defer onClose(nil)
 	}
-	assoc, err := h.session.OpenUDPAssociation()
+	if h.udp == nil {
+		return
+	}
+	assoc, err := h.udp.OpenUDPAssociation()
 	if err != nil {
 		return
 	}
@@ -176,8 +180,8 @@ func (h *vpnFlowHandler) NewPacketConnectionEx(ctx context.Context, conn N.Packe
 }
 
 func (h *vpnFlowHandler) NewDNSPacket(payload []byte, source, destination M.Socksaddr, writer N.PacketWriter) {
-	if !h.session.UDPEnabled {
-		response, err := dnsOverTCP(h.session, payload)
+	if h.udp == nil || !h.udp.UDPEnabled {
+		response, err := dnsOverTCP(h.tcp, payload)
 		if err != nil {
 			return
 		}
@@ -186,7 +190,7 @@ func (h *vpnFlowHandler) NewDNSPacket(payload []byte, source, destination M.Sock
 		_ = writer.WritePacket(packet, M.ParseSocksaddr("1.1.1.1:53"))
 		return
 	}
-	assoc, err := h.session.OpenUDPAssociation()
+	assoc, err := h.udp.OpenUDPAssociation()
 	if err != nil {
 		return
 	}
@@ -205,7 +209,7 @@ func (h *vpnFlowHandler) NewDNSPacket(payload []byte, source, destination M.Sock
 	_ = writer.WritePacket(packet, M.ParseSocksaddr(response.Address))
 }
 
-func dnsOverTCP(session *quictransport.Hysteria2Session, query []byte) ([]byte, error) {
+func dnsOverTCP(session tcpBackend, query []byte) ([]byte, error) {
 	if len(query) == 0 || len(query) > 65535 {
 		return nil, errors.New("invalid DNS packet size")
 	}

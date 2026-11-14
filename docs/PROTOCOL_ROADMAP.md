@@ -23,8 +23,8 @@ A protocol is marked supported only after parsing, authentication/handshake, bid
 2. Add HTTP(S), SOCKS5 with integration tests.
 3. Add encrypted TCP families, each with independent test servers.
 4. Add QUIC/UDP families and IPv6 support.
-5. Android VPNService/TUN skeleton is implemented for HY2. DNS is routed through
-   the node; generic UDP depends on HY2 UDP datagram negotiation. Leak, device,
+5. Android VPNService/TUN is implemented for HY2 and experimental AnyTLS TCP.
+   DNS uses HY2 UDP/TCP or AnyTLS TCP. AnyTLS UDP and real-device leak,
    network-switch and sustained-load verification remain open.
 6. Release only tested combinations; maintain versioned compatibility matrix.
 
@@ -35,7 +35,8 @@ No universal 100% compatibility claim: variants and protocol versions evolve.
 
 ## Current Android tunnel checkpoint (2026-11-14)
 
-- Android `VpnService` requests consent, establishes IPv4/IPv6 routes, protects and binds HY2 sockets to the physical network, and gives a duplicated TUN fd to the Go userspace IP stack. VPN revocation triggers service shutdown.
-- HY2 TCP streams are forwarded through the authenticated session. DNS requests use HY2 UDP where negotiated and fall back to DNS-over-TCP through the same session when the node does not advertise UDP.
-- Other UDP flows require server-side HY2 UDP support. This checkpoint does not include UDP-over-TCP fallback, protocol adapters beyond HY2, automatic reconnect/failover, or proof of no leaks on real Android devices.
+- Android `VpnService` requests consent, establishes IPv4/IPv6 routes, protects and binds native upstream sockets to the physical network, and gives a duplicated TUN fd to the Go userspace IP stack. VPN revocation triggers service shutdown.
+- HY2 TCP and DNS use the authenticated session, with DNS using UDP when negotiated and DNS-over-TCP otherwise. AnyTLS TCP and DNS-over-TCP use its authenticated multiplexed TLS streams.
+- AnyTLS UDP is not implemented. Other UDP flows require HY2 server datagram support. Automatic reconnect/failover and proof of no leaks on real Android devices remain open.
+- AnyTLS uses `github.com/anytls/sing-anytls` under GPL-3.0-or-later; license/source distribution obligations must be addressed before distributing an APK.
 - Go race tests and vet pass. Android SDK build, APK inspection, Flybit interoperability, and physical-device traffic tests are still required before distribution. Do not describe this checkpoint as a stable general-purpose VPN.

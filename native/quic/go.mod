@@ -3,6 +3,7 @@ module github.com/Cheems-gta/Cheems-Core/native/quic
 go 1.26.0
 
 require (
+	github.com/anytls/sing-anytls v0.0.13
 	github.com/quic-go/quic-go v0.48.2
 	github.com/sagernet/sing v0.9.5-0.20260917142815-f37989cadbf0
 	github.com/sagernet/sing-tun v0.9.7-0.20261114080632-40bd6cff5647

@@ -18,10 +18,10 @@ public final class TransportCapabilities {
       case "trojan":
       case "socks5":
       case "http":
+      case "anytls":
         return Status.TCP_READY;
       case "hysteria2":
       case "hy2":
-      case "anytls":
         return Status.PARSE_ONLY;
       default:
         return Status.NOT_IMPLEMENTED;
@@ -43,3 +43,4 @@ public final class TransportCapabilities {
          protocol.equalsIgnoreCase("tuic"));
   }
 }
+

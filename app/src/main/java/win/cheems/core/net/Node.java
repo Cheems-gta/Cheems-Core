@@ -26,14 +26,14 @@ public final class Node {
     sni = value(m, "sni", value(m, "servername", host));
     String reason = "";
     if (host.isEmpty() || port < 1 || port > 65535) reason = "地址或端口无效";
-    else if (type.equals("hysteria2") && password.isEmpty()) reason = "Hysteria 2 缺少认证密码";
+    else if ((type.equals("hysteria2") || type.equals("anytls")) && password.isEmpty()) reason = type.toUpperCase(Locale.ROOT) + " 缺少认证密码";
     else if (type.equals("hysteria2") && (!value(m, "obfs", "").isEmpty() || !value(m, "obfs-password", "").isEmpty()))
       reason = "当前独立内核尚不支持 Hysteria 2 混淆（Salamander）";
     else if (type.equals("hysteria2") && m.containsKey("ports"))
       reason = "当前独立内核尚不支持 Hysteria 2 端口跳跃";
-    else if (type.equals("anytls"))
-      reason = "AnyTLS 节点已识别，但当前版本尚未实现会话协议；不可连接。请等待真实协议实现和互通测试";
-    else if (!Arrays.asList("ss", "trojan", "socks5", "http", "hysteria2").contains(type))
+    else if (type.equals("anytls") && !value(m, "client-fingerprint", "").isEmpty())
+      reason = "AnyTLS 客户端 TLS 指纹尚未实现";
+    else if (!Arrays.asList("ss", "trojan", "socks5", "http", "hysteria2", "anytls").contains(type))
       reason = "暂未实现 " + type + " 协议";
     else if (m.containsKey("plugin") && !value(m, "plugin", "").isEmpty()) reason = "暂不支持插件传输";
     else if (!Arrays.asList("tcp", "").contains(value(m, "network", "tcp")))
@@ -44,7 +44,7 @@ public final class Node {
         && !Arrays.asList("aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305").contains(cipher))
       reason = "暂不支持加密方式 " + cipher;
     else if ((type.equals("ss") || type.equals("trojan")) && password.isEmpty()) reason = "缺少密码";
-    else if (!type.equals("hysteria2")
+    else if (!type.equals("hysteria2") && !type.equals("anytls")
         && Boolean.parseBoolean(value(m, "skip-cert-verify", "false")))
       reason = "此配置要求跳过证书验证；请使用有效证书";
     unsupported = reason;
@@ -52,20 +52,20 @@ public final class Node {
 
   /** Record the provider's insecure hint; actual TLS verification stays enabled. */
   public boolean hasInsecureTlsFlag() {
-    return type.equals("hysteria2")
+    return (type.equals("hysteria2") || type.equals("anytls"))
         && Boolean.parseBoolean(value(source, "skip-cert-verify", "false"));
   }
 
   /** An inline PEM CA imported in the subscription (never a filesystem path). */
   public String trustedCAPEM() {
-    if (!type.equals("hysteria2")) return "";
+    if (!type.equals("hysteria2") && !type.equals("anytls")) return "";
     String pem = value(source, "ca-str", value(source, "ca", ""));
     return pem.contains("-----BEGIN CERTIFICATE-----") ? pem : "";
   }
 
   /** HY2 server leaf-certificate pin; do not confuse with TLS client fingerprint. */
   public String certificateSHA256() {
-    if (!type.equals("hysteria2")) return "";
+    if (!type.equals("hysteria2") && !type.equals("anytls")) return "";
     return value(source, "pinSHA256",
         value(source, "pin-sha256", value(source, "pin-sha-256", "")));
   }
@@ -75,7 +75,8 @@ public final class Node {
   }
 
   public boolean tls() {
-    return type.equals("trojan") || Boolean.parseBoolean(value(source, "tls", "false"));
+    return type.equals("trojan") || type.equals("anytls")
+        || Boolean.parseBoolean(value(source, "tls", "false"));
   }
 
   public static String value(Map<?, ?> m, String key, String fallback) {
@@ -88,3 +89,4 @@ public final class Node {
     return name + " · " + type.toUpperCase(Locale.ROOT) + (supported() ? "" : " · " + unsupported);
   }
 }
+

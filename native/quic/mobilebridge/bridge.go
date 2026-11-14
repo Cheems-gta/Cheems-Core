@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"sync"
@@ -18,6 +19,8 @@ import (
 var (
 	mu           sync.Mutex
 	session      *quictransport.Hysteria2Session
+	anyTLSClient *quictransport.AnyTLSClient
+	activeTCP    tcpBackend
 	server       *quictransport.SOCKS5Server
 	starting     bool
 	generation   uint64
@@ -26,6 +29,10 @@ var (
 	startCancel  context.CancelFunc
 	startNetwork Network
 )
+
+type tcpBackend interface {
+	OpenTCP(context.Context, string, int) (io.ReadWriteCloser, error)
+}
 
 // Start authenticates and opens a local TCP-only SOCKS5 listener.
 // Must be called from an Android background thread.
@@ -101,6 +108,8 @@ func start(host string, port int, sni string, password string, localPort int, lo
 		return errors.New("Hysteria 2 startup canceled")
 	}
 	session = newSession
+	anyTLSClient = nil
+	activeTCP = newSession
 	server = newServer
 	startNetwork = network
 	running.Store(true)
@@ -112,6 +121,7 @@ func start(host string, port int, sni string, password string, localPort int, lo
 			if server == newServer {
 				server = nil
 				session = nil
+				activeTCP = nil
 				running.Store(false)
 				lastError = "SOCKS5 listener stopped unexpectedly"
 				mu.Unlock()
@@ -132,10 +142,89 @@ func start(host string, port int, sni string, password string, localPort int, lo
 		}
 		server = nil
 		session = nil
+		activeTCP = nil
 		running.Store(false)
 		lastError = "Hysteria 2 QUIC connection closed"
 		mu.Unlock()
 		_ = newServer.Close()
+	}()
+	return nil
+}
+
+// StartAnyTLSWithNetwork creates the AnyTLS client, protected local SOCKS
+// bridge, and TCP backend used by the Android VPN TUN stack.
+func StartAnyTLSWithNetwork(host string, port int, sni string, password string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, network Network) error {
+	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
+		return errors.New("invalid server or local port")
+	}
+	if password == "" || len(localSecret) < 24 || len(localSecret) > 255 || network == nil {
+		return errors.New("AnyTLS password, local secret, and protected network callback required")
+	}
+	clientCtx, cancel := context.WithCancel(context.Background())
+	mu.Lock()
+	if starting || server != nil {
+		mu.Unlock()
+		cancel()
+		return errors.New("a native proxy is already starting or running")
+	}
+	starting = true
+	startCancel = cancel
+	startGeneration := generation
+	mu.Unlock()
+
+	client, err := quictransport.NewAnyTLSClient(clientCtx, quictransport.AnyTLSConfig{
+		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
+		Password: password, Network: network, TrustedCAPEM: customCAPEM,
+		CertificateSHA256: certificateSHA256, AllowUnverifiedTLS: allowUnverifiedTLS,
+	})
+	if err != nil {
+		cancel()
+		recordFailure(startGeneration, err)
+		return err
+	}
+	newServer, err := quictransport.ListenSOCKS5WithDialer(fmt.Sprintf("127.0.0.1:%d", localPort), localSecret, client.OpenTCP)
+	if err != nil {
+		_ = client.Close()
+		cancel()
+		recordFailure(startGeneration, err)
+		return err
+	}
+	mu.Lock()
+	if generation == startGeneration {
+		starting = false
+		startCancel = nil
+	}
+	if generation != startGeneration {
+		mu.Unlock()
+		_ = newServer.Close()
+		_ = client.Close()
+		cancel()
+		return errors.New("AnyTLS startup canceled")
+	}
+	session = nil
+	anyTLSClient = client
+	activeTCP = client
+	server = newServer
+	startNetwork = network
+	running.Store(true)
+	lastError = ""
+	mu.Unlock()
+	go func() {
+		if serveErr := newServer.Serve(); serveErr != nil {
+			mu.Lock()
+			if server == newServer {
+				server = nil
+				anyTLSClient = nil
+				activeTCP = nil
+				running.Store(false)
+				lastError = "AnyTLS local SOCKS5 listener stopped unexpectedly"
+				mu.Unlock()
+				_ = client.Close()
+				cancel()
+				return
+			}
+			mu.Unlock()
+		}
 	}()
 	return nil
 }
@@ -161,8 +250,11 @@ func Stop() {
 	startCancel = nil
 	oldServer := server
 	oldSession := session
+	oldAnyTLS := anyTLSClient
 	server = nil
 	session = nil
+	anyTLSClient = nil
+	activeTCP = nil
 	startNetwork = nil
 	running.Store(false)
 	mu.Unlock()
@@ -174,6 +266,9 @@ func Stop() {
 	}
 	if oldSession != nil {
 		_ = oldSession.Close()
+	}
+	if oldAnyTLS != nil {
+		_ = oldAnyTLS.Close()
 	}
 }
 

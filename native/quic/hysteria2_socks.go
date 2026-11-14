@@ -38,6 +38,15 @@ func ListenSOCKS5(session *Hysteria2Session, address string, secret string) (*SO
 	return server, err
 }
 
+// ListenSOCKS5WithDialer creates an authenticated TCP-only loopback bridge for
+// protocol backends that do not expose HY2 datagrams, such as AnyTLS.
+func ListenSOCKS5WithDialer(address string, secret string, dial func(context.Context, string, int) (io.ReadWriteCloser, error)) (*SOCKS5Server, error) {
+	if dial == nil {
+		return nil, errors.New("missing TCP dialer")
+	}
+	return listenSOCKS5(address, tcpDialer(dial), secret)
+}
+
 // listenSOCKS5 accepts an injectable dialer to exercise the full SOCKS5
 // handshake and data relay without requiring private subscription credentials.
 func listenSOCKS5(address string, dial tcpDialer, secret string) (*SOCKS5Server, error) {
@@ -235,4 +244,3 @@ func (s *SOCKS5Server) String() string {
 	}
 	return fmt.Sprintf("SOCKS5 listening at %s", s.listener.Addr())
 }
-

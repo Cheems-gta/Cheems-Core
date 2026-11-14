@@ -34,6 +34,8 @@ public final class Hysteria2Native {
       Class<?> network = Class.forName("go.mobilebridge.Network");
       binding().getMethod("startWithNetwork", String.class, long.class, String.class, String.class,
           long.class, String.class, boolean.class, String.class, String.class, network);
+      binding().getMethod("startAnyTLSWithNetwork", String.class, long.class, String.class, String.class,
+          long.class, String.class, boolean.class, String.class, String.class, network);
       binding().getMethod("startTunnel", long.class);
       binding().getMethod("stopTunnel");
       return true;
@@ -43,8 +45,10 @@ public final class Hysteria2Native {
 
   public static void start(Node node, int localPort, boolean allowUnverifiedTLS, String customCAPEM,
       CoreService vpnService) throws Exception {
-    if (!"hysteria2".equals(node.type)) throw new IllegalArgumentException("Hysteria 2 node required");
-    if (node.password.isEmpty()) throw new IllegalArgumentException("Missing Hysteria 2 password");
+    boolean hy2 = "hysteria2".equals(node.type);
+    boolean anytls = "anytls".equals(node.type);
+    if (!hy2 && !anytls) throw new IllegalArgumentException("Native node protocol required");
+    if (node.password.isEmpty()) throw new IllegalArgumentException("Missing node password");
     if (localPort < 1 || localPort > 65535) throw new IllegalArgumentException("Invalid local port");
     if (allowUnverifiedTLS && !node.hasInsecureTlsFlag())
       throw new IllegalArgumentException("Unverified TLS requires an explicit insecure provider flag");
@@ -66,7 +70,8 @@ public final class Hysteria2Native {
             if(method.getName().equals("toString")) return "CheemsPhysicalNetwork";
             throw new UnsupportedOperationException(method.getName());
           });
-      Method start = binding().getMethod("startWithNetwork", String.class, long.class, String.class,
+      String methodName = hy2 ? "startWithNetwork" : "startAnyTLSWithNetwork";
+      Method start = binding().getMethod(methodName, String.class, long.class, String.class,
           String.class, long.class, String.class, boolean.class, String.class, String.class, networkType);
       start.invoke(null, node.host, (long) node.port, node.sni, node.password, (long) localPort,
           token, allowUnverifiedTLS, platformAndCustomCAPEM, node.certificateSHA256(),network);
