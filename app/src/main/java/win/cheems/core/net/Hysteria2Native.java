@@ -27,21 +27,27 @@ public final class Hysteria2Native {
   }
 
   public static boolean isPackaged() {
-    try { binding().getMethod("start", String.class, long.class, String.class, String.class, long.class, String.class); return true; }
+    try { binding().getMethod("start", String.class, long.class, String.class, String.class, long.class, String.class, boolean.class, String.class, String.class); return true; }
     catch (ReflectiveOperationException | LinkageError e) { return false; }
   }
 
-  public static void start(Node node, int localPort) throws Exception {
+  public static void start(Node node, int localPort, boolean allowUnverifiedTLS, String customCAPEM) throws Exception {
     if (!"hysteria2".equals(node.type)) throw new IllegalArgumentException("Hysteria 2 node required");
     if (node.password.isEmpty()) throw new IllegalArgumentException("Missing Hysteria 2 password");
     if (localPort < 1 || localPort > 65535) throw new IllegalArgumentException("Invalid local port");
+    if (allowUnverifiedTLS && !node.hasInsecureTlsFlag())
+      throw new IllegalArgumentException("Unverified TLS requires an explicit insecure provider flag");
+    String trustedCAPEM = customCAPEM == null || customCAPEM.isBlank()
+        ? node.trustedCAPEM() : customCAPEM;
+    if (trustedCAPEM.length() > 64 * 1024)
+      throw new IllegalArgumentException("Custom CA certificate exceeds 64 KiB");
     byte[] nonce = new byte[32];
     new SecureRandom().nextBytes(nonce);
     String token = Base64.getUrlEncoder().withoutPadding().encodeToString(nonce);
     localToken.set(token);
     try {
-      Method start = binding().getMethod("start", String.class, long.class, String.class, String.class, long.class, String.class);
-      start.invoke(null, node.host, (long) node.port, node.sni, node.password, (long) localPort, token);
+      Method start = binding().getMethod("start", String.class, long.class, String.class, String.class, long.class, String.class, boolean.class, String.class, String.class);
+      start.invoke(null, node.host, (long) node.port, node.sni, node.password, (long) localPort, token, allowUnverifiedTLS, trustedCAPEM, node.certificateSHA256());
     } catch (ClassNotFoundException e) {
       localToken.compareAndSet(token, null);
       throw new IllegalStateException("Hysteria 2 native AAR is not packaged in this APK", e);
