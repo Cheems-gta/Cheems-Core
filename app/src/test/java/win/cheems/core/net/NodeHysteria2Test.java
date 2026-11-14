@@ -22,8 +22,10 @@ public final class NodeHysteria2Test {
     assertEquals("hysteria2", node("hy2").type);
   }
 
-  @Test public void noInsecureCertificateBypass() {
-    assertFalse(node("hysteria2", "skip-cert-verify", true).supported());
+  @Test public void providerInsecureHintIsRecognizedWithoutDisablingTlsVerification() {
+    Node n = node("hysteria2", "skip-cert-verify", true);
+    assertTrue("strict-TLS connection attempts remain selectable", n.supported());
+    assertTrue("the UI must warn about the provider's insecure setting", n.hasInsecureTlsFlag());
   }
 
   @Test public void unsupportedFeaturesCannotBeSilentlyIgnored() {
