@@ -469,7 +469,7 @@ public final class MainActivity extends Activity {
         CoreService.connecting ? "● 正在连接节点…" :
         hy2Disconnected ? "● HY2 远端已断开" :
         localRunning ? "● 本地代理运行中" :
-        CoreService.lastFailure != null ? "● 连接失败 · 查看运行记录" : "● 未启动");
+        CoreService.lastFailure != null ? "● " + CoreService.lastFailure : "● 未启动");
     metrics.setText(
         c == null
             ? "连接 0   ↑ 0 B   ↓ 0 B"
