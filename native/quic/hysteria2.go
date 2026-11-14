@@ -42,7 +42,7 @@ func DialHysteria2(ctx context.Context, cfg Hysteria2Config) (*Hysteria2Session,
  ctx,cancel:=context.WithTimeout(ctx,cfg.Timeout)
  defer cancel()
  tlsConfig:=&tls.Config{ServerName:cfg.ServerName,NextProtos:[]string{"h3"},MinVersion:tls.VersionTLS13}
- conn,err:=quic.DialAddrEarly(ctx,cfg.Address,tlsConfig,&quic.Config{KeepAlivePeriod:15*time.Second,MaxIdleTimeout:60*time.Second})
+ conn,err:=quic.DialAddrEarly(ctx,cfg.Address,tlsConfig,&quic.Config{KeepAlivePeriod:15*time.Second,MaxIdleTimeout:60*time.Second,EnableDatagrams:true})
  if err!=nil { return nil,fmt.Errorf("Hysteria 2 QUIC handshake: %w",err) }
  transport:=&Transport{connection:conn}
  h3:=&http3.Transport{
