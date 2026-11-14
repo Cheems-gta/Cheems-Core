@@ -1,0 +1,22 @@
+name: QUIC transport checks
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'native/quic/**'
+      - '.github/workflows/quic.yml'
+jobs:
+  go-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: native/quic/go.mod
+      - name: Check QUIC transport
+        working-directory: native/quic
+        run: |
+          go mod tidy
+          go test ./... -race
+          go vet ./...
