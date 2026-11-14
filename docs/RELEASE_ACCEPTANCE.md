@@ -55,8 +55,7 @@ The Go HY2 configuration now accepts a physical-network resolver and socket
 protection callback. A rejected protection request or DNS failure stops the
 connection without falling back to another resolver. The mobile bridge exposes
 `StartWithNetwork`; existing local-proxy callers keep their previous API.
-The future Android VPN service still needs to implement and call this interface.
-No TUN or global VPN capability is claimed by this checkpoint.
+The Android VPN service now implements and calls this interface. The TUN path is still alpha; no device stability or leak-free claim is made.
 
 A local HTTP/3 test peer verifies TLS trust, HY2 authentication, bidirectional
 TCP stream payload, wrong-password rejection and UDP socket cleanup. Additional

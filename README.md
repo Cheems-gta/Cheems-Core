@@ -17,7 +17,11 @@ The frontend exposes a local **HTTP CONNECT** server on `127.0.0.1:8899` and an 
 
 The native Hysteria 2 implementation is **unverified against a real Flybit node** and should not be presented as a fully compatible release. The source and unit tests do not prove real-world QUIC interoperability.
 
-## Android VPN alpha checkpoint (2026-11-14)\n\nThe compatibility branch now contains an HY2-only global VPN path: protected physical-network sockets, IPv4/IPv6 routes, TCP stream forwarding, and DNS through HY2 UDP or TCP. Android permission revocation closes the tunnel. Generic UDP, reconnect/failover, other protocols, Android CI build, Flybit interoperability and real-device stability remain unverified. No APK is being delivered at this checkpoint.\n\n## Builds
+## Android VPN alpha checkpoint (2026-11-14)
+
+The compatibility branch now contains an HY2-only global VPN path: protected physical-network sockets, IPv4/IPv6 routes, TCP stream forwarding, and DNS through HY2 UDP or TCP. Android permission revocation closes the tunnel. Generic UDP, reconnect/failover, other protocols, Android CI build, Flybit interoperability and real-device stability remain unverified. No APK is being delivered at this checkpoint.
+
+## Builds
 
 - `.github/workflows/android-quic-aar.yml`: tests Go code, builds the Android native AAR, verifies the generated Java bindings, tests/builds/lints the Android app, checks the APK contains `libgojni.so`, verifies debug signing, and uploads a checksummed `Cheems-Core-v0.3.4-hy2-tls-alpha.apk` workflow artifact **only if the CI job passes**.
 - `.github/workflows/android.yml`: legacy Java-only workflow for manual use; **its APK does not contain the Hysteria 2 native engine** and must not be confused with the native build.

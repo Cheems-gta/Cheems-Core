@@ -23,10 +23,19 @@ A protocol is marked supported only after parsing, authentication/handshake, bid
 2. Add HTTP(S), SOCKS5 with integration tests.
 3. Add encrypted TCP families, each with independent test servers.
 4. Add QUIC/UDP families and IPv6 support.
-5. Android VPNService/TUN skeleton is implemented for HY2. DNS is routed through\n   the node; generic UDP depends on HY2 UDP datagram negotiation. Leak, device,\n   network-switch and sustained-load verification remain open.
+5. Android VPNService/TUN skeleton is implemented for HY2. DNS is routed through
+   the node; generic UDP depends on HY2 UDP datagram negotiation. Leak, device,
+   network-switch and sustained-load verification remain open.
 6. Release only tested combinations; maintain versioned compatibility matrix.
 
 Security defaults: loopback-only local listener until authentication/access controls exist, no plaintext credential logging, TLS verification enabled, no silent fallback on handshake failures.
 
 No universal 100% compatibility claim: variants and protocol versions evolve.
-\n\n## Current Android tunnel checkpoint (2026-11-14)\n\n- Android `VpnService` requests consent, establishes IPv4/IPv6 routes, protects and binds HY2 sockets to the physical network, and gives a duplicated TUN fd to the Go userspace IP stack. VPN revocation triggers service shutdown.\n- HY2 TCP streams are forwarded through the authenticated session. DNS requests use HY2 UDP where negotiated and fall back to DNS-over-TCP through the same session when the node does not advertise UDP.\n- Other UDP flows require server-side HY2 UDP support. This checkpoint does not include UDP-over-TCP fallback, protocol adapters beyond HY2, automatic reconnect/failover, or proof of no leaks on real Android devices.\n- Go race tests and vet pass. Android SDK build, APK inspection, Flybit interoperability, and physical-device traffic tests are still required before distribution. Do not describe this checkpoint as a stable general-purpose VPN.\n
+
+
+## Current Android tunnel checkpoint (2026-11-14)
+
+- Android `VpnService` requests consent, establishes IPv4/IPv6 routes, protects and binds HY2 sockets to the physical network, and gives a duplicated TUN fd to the Go userspace IP stack. VPN revocation triggers service shutdown.
+- HY2 TCP streams are forwarded through the authenticated session. DNS requests use HY2 UDP where negotiated and fall back to DNS-over-TCP through the same session when the node does not advertise UDP.
+- Other UDP flows require server-side HY2 UDP support. This checkpoint does not include UDP-over-TCP fallback, protocol adapters beyond HY2, automatic reconnect/failover, or proof of no leaks on real Android devices.
+- Go race tests and vet pass. Android SDK build, APK inspection, Flybit interoperability, and physical-device traffic tests are still required before distribution. Do not describe this checkpoint as a stable general-purpose VPN.
