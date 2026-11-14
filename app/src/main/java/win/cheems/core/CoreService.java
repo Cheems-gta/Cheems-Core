@@ -11,6 +11,8 @@ import win.cheems.core.net.Node;
 public final class CoreService extends Service {
   static volatile Node selected;
   static volatile ProxyCore core;
+  static volatile boolean connecting;
+  private ProxyCore ownedCore;
   private static final ArrayDeque<String> events = new ArrayDeque<>();
   private final AtomicBoolean launching = new AtomicBoolean();
   private volatile boolean destroyed;
@@ -28,7 +30,8 @@ public final class CoreService extends Service {
   public void onCreate() {
     super.onCreate();
     destroyed = false;
-    core = new ProxyCore(CoreService::log);
+    ownedCore = new ProxyCore(CoreService::log);
+    core = ownedCore;
   }
 
   @Override
@@ -49,6 +52,7 @@ public final class CoreService extends Service {
             .build();
     startForeground(1, n);
     if (!launching.compareAndSet(false, true)) return START_NOT_STICKY;
+    connecting = true;
 
     final Node node = selected;
     new Thread(
@@ -69,12 +73,14 @@ public final class CoreService extends Service {
                   if ("hysteria2".equals(node.type)) Hysteria2Native.stop();
                   return;
                 }
-                core.start(node);
+                ownedCore.start(node);
+                connecting = false;
                 if (destroyed) {
-                  core.stop();
+                  ownedCore.stop();
                   if ("hysteria2".equals(node.type)) Hysteria2Native.stop();
                 }
               } catch (Exception | LinkageError e) {
+                connecting = false;
                 String message = e.getMessage();
                 log("代理启动失败：" + (message == null ? e.getClass().getSimpleName() : message));
                 stopSelfResult(id);
@@ -88,18 +94,16 @@ public final class CoreService extends Service {
   @Override
   public void onDestroy() {
     destroyed = true;
-    if (core != null) core.stop();
-    // Go startup may still be waiting for QUIC: do not block Android's main thread.
-    new Thread(
-            () -> {
-              try {
-                if (Hysteria2Native.isPackaged()) Hysteria2Native.stop();
-              } catch (Exception e) {
-                log("原生连接关闭异常");
-              }
-            },
-            "cheems-shutdown")
-        .start();
+    connecting = false;
+    if (ownedCore != null) ownedCore.stop();
+    if (core == ownedCore) core = null;
+    // Stop synchronously so an old asynchronous shutdown cannot destroy
+    // a newly selected node's native session. Go Stop cancels pending startup.
+    try {
+      if (Hysteria2Native.isPackaged()) Hysteria2Native.stop();
+    } catch (Exception e) {
+      log("原生连接关闭异常");
+    }
     stopForeground(STOP_FOREGROUND_REMOVE);
     super.onDestroy();
   }
