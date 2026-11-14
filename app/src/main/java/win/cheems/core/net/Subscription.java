@@ -94,6 +94,7 @@ public final class Subscription {
           String[] kv = part.split("=", 2);
           String key = urlDecode(kv[0]), value = kv.length == 2 ? urlDecode(kv[1]) : "";
           if (key.equals("sni") || key.equals("peer")) m.put("sni", value);
+          if (key.equals("pinSHA256") || key.equals("pin-sha256") || key.equals("pin-sha-256")) m.put("pinSHA256", value);
           if (key.equals("obfs")) m.put("obfs", value);
           if (key.equals("obfs-password")) m.put("obfs-password", value);
           if (key.equals("insecure") || key.equals("allowInsecure"))
