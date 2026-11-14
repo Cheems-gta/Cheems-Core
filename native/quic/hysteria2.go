@@ -30,7 +30,6 @@ type Hysteria2Config struct {
  Address string
  ServerName string
  Password string
- InsecureSkipVerify bool
  Timeout time.Duration
 }
 
@@ -44,7 +43,7 @@ func DialHysteria2(ctx context.Context, cfg Hysteria2Config) (*Hysteria2Session,
  if cfg.Timeout<=0 { cfg.Timeout=10*time.Second }
  ctx,cancel:=context.WithTimeout(ctx,cfg.Timeout)
  defer cancel()
- tlsConfig:=&tls.Config{ServerName:cfg.ServerName,NextProtos:[]string{"h3"},MinVersion:tls.VersionTLS13,InsecureSkipVerify:cfg.InsecureSkipVerify}
+ tlsConfig:=&tls.Config{ServerName:cfg.ServerName,NextProtos:[]string{"h3"},MinVersion:tls.VersionTLS13}
  conn,err:=quic.DialAddrEarly(ctx,cfg.Address,tlsConfig,&quic.Config{KeepAlivePeriod:15*time.Second,MaxIdleTimeout:60*time.Second,EnableDatagrams:true})
  if err!=nil { return nil,fmt.Errorf("Hysteria 2 QUIC handshake: %w",err) }
  transport:=&Transport{connection:conn}
