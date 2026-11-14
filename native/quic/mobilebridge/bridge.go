@@ -60,7 +60,7 @@ func Start(host string,port int,sni string,password string,localPort int)error{
   return err
  }
  mu.Lock()
- starting=false
+ if generation==startGeneration{starting=false}
  if generation!=startGeneration{
   mu.Unlock()
   _=newServer.Close()
@@ -93,8 +93,10 @@ func Start(host string,port int,sni string,password string,localPort int)error{
 func recordFailure(startGeneration uint64,err error){
  mu.Lock()
  defer mu.Unlock()
- starting=false
- if generation==startGeneration{lastError=err.Error()}
+ if generation==startGeneration{
+  starting=false
+  lastError=err.Error()
+ }
 }
 
 // Stop invalidates even an in-progress startup; never waits for network dial
@@ -102,6 +104,7 @@ func recordFailure(startGeneration uint64,err error){
 func Stop(){
  mu.Lock()
  generation++
+ starting=false
  oldServer:=server
  oldSession:=session
  server=nil
