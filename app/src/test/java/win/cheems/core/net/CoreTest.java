@@ -11,7 +11,7 @@ import org.junit.Test;
 
 public class CoreTest {
   @Test
-  public void clashSubscriptionPreservesUnsupportedNodes() throws Exception {
+  public void clashSubscriptionKeepsSupportedHy2Configuration() throws Exception {
     List<Node> n =
         Subscription.parse(
             "proxies:\n"
@@ -21,7 +21,7 @@ public class CoreTest {
                 + " secret}\n");
     assertEquals(2, n.size());
     assertTrue(n.get(0).supported());
-    assertFalse(n.get(1).supported());
+    assertTrue("HY2 configuration is supported by integrated builds", n.get(1).supported());
   }
 
   @Test
