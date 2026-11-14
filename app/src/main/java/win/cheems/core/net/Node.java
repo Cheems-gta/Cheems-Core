@@ -50,8 +50,8 @@ public final class Node {
     unsupported = reason;
   }
 
-  /** HY2 nodes can be recognized without silently accepting unverified TLS. */
-  public boolean needsInsecureTlsConsent() {
+  /** Record the provider's insecure hint; actual TLS verification stays enabled. */
+  public boolean hasInsecureTlsFlag() {
     return type.equals("hysteria2")
         && Boolean.parseBoolean(value(source, "skip-cert-verify", "false"));
   }
