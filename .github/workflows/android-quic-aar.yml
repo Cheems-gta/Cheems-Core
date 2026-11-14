@@ -35,6 +35,7 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
         run: |
+          go get -tool golang.org/x/mobile/cmd/gobind@latest
           go mod tidy
           go test ./... -count=1
           go vet ./...
