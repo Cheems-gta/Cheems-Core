@@ -9,6 +9,7 @@ import (
  "net"
  "strconv"
  "strings"
+ "time"
 
  "github.com/quic-go/quic-go/quicvarint"
 )
@@ -28,8 +29,19 @@ func (s *Hysteria2Session) OpenTCP(ctx context.Context, host string, port int) (
  address:=net.JoinHostPort(host,strconv.Itoa(port))
  stream,err:=s.Transport.OpenStream(ctx)
  if err!=nil { return nil,err }
+ // Opening a QUIC stream honors ctx, but stream reads do not. Bound the
+ // connect acknowledgement explicitly so an unresponsive peer cannot hang
+ // the Android startup/relay thread forever.
+ deadline,hasDeadline:=ctx.Deadline()
+ if !hasDeadline { deadline=time.Now().Add(15*time.Second) }
+ if d,ok:=stream.(interface{SetDeadline(time.Time)error});ok {
+  if err=d.SetDeadline(deadline);err!=nil { stream.Close();return nil,err }
+ }
  if err=WriteTCPRequest(stream,address);err!=nil { stream.Close();return nil,err }
  if err=ReadTCPResponse(stream);err!=nil { stream.Close();return nil,err }
+ if d,ok:=stream.(interface{SetDeadline(time.Time)error});ok {
+  if err=d.SetDeadline(time.Time{});err!=nil { stream.Close();return nil,err }
+ }
  return stream,nil
 }
 
