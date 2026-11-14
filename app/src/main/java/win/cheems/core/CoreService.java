@@ -29,6 +29,11 @@ public final class CoreService extends Service {
     return String.join("\n", events);
   }
 
+  private void updateConnecting(boolean value) {
+    // A canceled service must not overwrite the state of its successor.
+    if (core == ownedCore) connecting = value;
+  }
+
   @Override
   public void onCreate() {
     super.onCreate();
@@ -81,13 +86,13 @@ public final class CoreService extends Service {
                   return;
                 }
                 ownedCore.start(node);
-                connecting = false;
+                updateConnecting(false);
                 if (destroyed) {
                   ownedCore.stop();
                   if ("hysteria2".equals(node.type)) Hysteria2Native.stop();
                 }
               } catch (Exception | LinkageError e) {
-                connecting = false;
+                updateConnecting(false);
                 String message = e.getMessage();
                 log("代理启动失败：" + (message == null ? e.getClass().getSimpleName() : message));
                 stopSelfResult(id);
@@ -101,7 +106,7 @@ public final class CoreService extends Service {
   @Override
   public void onDestroy() {
     destroyed = true;
-    connecting = false;
+    updateConnecting(false);
     if (ownedCore != null) ownedCore.stop();
     if (core == ownedCore) core = null;
     if (ownedHttpPassword != null && ownedHttpPassword.equals(localHttpPassword))
