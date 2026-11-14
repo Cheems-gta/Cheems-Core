@@ -13,6 +13,7 @@ public final class CoreService extends Service {
   static volatile Node selected;
   static volatile ProxyCore core;
   static volatile boolean connecting;
+  static volatile String lastFailure;
   static volatile String localHttpPassword;
   private String ownedHttpPassword;
   private ProxyCore ownedCore;
@@ -89,7 +90,12 @@ public final class CoreService extends Service {
     startForeground(1, n);
     if (!launching.compareAndSet(false, true)) return START_NOT_STICKY;
     connecting = true;
+    lastFailure = null;
 
+    final boolean allowUnverifiedTLS =
+        intent != null && intent.getBooleanExtra("hy2.allowUnverifiedTls", false);
+    final String customCAPEM =
+        intent == null ? null : intent.getStringExtra("hy2.trustedCaPem");
     final Node node = selected;
     new Thread(
             () -> {
@@ -103,7 +109,12 @@ public final class CoreService extends Service {
                     throw new IllegalStateException("当前 APK 未打包 Hysteria 2 原生内核");
                   }
                   log("正在通过 QUIC 连接 Hysteria 2 服务端…");
-                  Hysteria2Native.start(node, Hysteria2Native.LOCAL_SOCKS_PORT);
+                  if (allowUnverifiedTLS)
+                    log("安全提示：本次 HY2 连接跳过默认 CA / 域名校验；如有证书指纹仍会检查指纹");
+                  else if (customCAPEM != null && !customCAPEM.isBlank())
+                    log("本次 HY2 连接使用自定义 CA，并继续校验服务器名称");
+                  Hysteria2Native.start(node, Hysteria2Native.LOCAL_SOCKS_PORT,
+                      allowUnverifiedTLS, customCAPEM);
                 }
                 if (destroyed) {
                   if ("hysteria2".equals(node.type)) Hysteria2Native.stop();
@@ -111,6 +122,8 @@ public final class CoreService extends Service {
                 }
                 ownedCore.start(node);
                 updateConnecting(false);
+                lastFailure = null;
+                log("节点已连接，本地 HTTP CONNECT 代理启动成功");
                 if ("hysteria2".equals(node.type) && !destroyed) {
                   if (!Hysteria2Native.isRunning()) {
                     log("Hysteria 2 连接已丢失，本地代理将停止");
@@ -126,7 +139,16 @@ public final class CoreService extends Service {
               } catch (Exception | LinkageError e) {
                 updateConnecting(false);
                 String message = e.getMessage();
-                log("代理启动失败：" + (message == null ? e.getClass().getSimpleName() : message));
+                String detail = message == null ? e.getClass().getSimpleName() : message;
+                String lower = detail.toLowerCase(java.util.Locale.ROOT);
+                if (lower.contains("unknown authority"))
+                  lastFailure = "证书不受信任；请核对 SNI，使用可信 CA 或服务商证书指纹";
+                else if (lower.contains("no recent network activity") || lower.contains("timeout"))
+                  lastFailure = "QUIC 握手超时；请检查当前网络的 UDP 连通性和节点地址";
+                else if (lower.contains("fingerprint mismatch"))
+                  lastFailure = "服务器证书指纹不匹配，已拒绝连接";
+                else lastFailure = "节点连接失败；查看运行记录";
+                log("代理启动失败：" + detail);
                 stopSelfResult(id);
               }
             },
