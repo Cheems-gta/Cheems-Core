@@ -157,7 +157,7 @@ public final class MainActivity extends Activity {
         label(
             "已实现：SS AEAD · Trojan TCP/TLS · SOCKS5 · HTTP(S)\n"
                 + "HY2：实验性 VPN，UDP 取决于节点。AnyTLS/VLESS TCP+TLS：实验性 VPN。SOCKS5：实验性 TCP/UDP VPN。\n"
-                + "暂不支持：VMess、VLESS Reality/WS/gRPC、协议插件和 AnyTLS UDP。\n"
+                + "暂不支持：VMess WS/gRPC、VLESS Reality/WS/gRPC、协议插件和 AnyTLS UDP。\n"
                 + "节点凭据仅加密保存在本机，不上传到项目仓库。",
             12,
             muted));
