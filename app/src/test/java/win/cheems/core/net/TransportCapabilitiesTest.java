@@ -32,6 +32,7 @@ public class TransportCapabilitiesTest {
       assertFalse(TransportCapabilities.canDialUdp(p));
     assertTrue(TransportCapabilities.canDialUdp("socks5"));
     assertTrue(TransportCapabilities.canDialUdp("vmess"));
+    assertTrue(TransportCapabilities.canDialUdp("ss2022"));
   }
 }
 

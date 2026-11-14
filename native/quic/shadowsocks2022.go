@@ -15,10 +15,11 @@ import (
 	"github.com/sagernet/sing-shadowsocks"
 	"github.com/sagernet/sing-shadowsocks/shadowaead_2022"
 	M "github.com/sagernet/sing/common/metadata"
+	N "github.com/sagernet/sing/common/network"
 )
 
-// Shadowsocks2022Config covers the standard direct TCP transport. Plugins and
-// UDP relay are intentionally handled as separate capabilities.
+// Shadowsocks2022Config covers standard direct TCP and UDP transports.
+// Plugin transports and multi-key identities remain unsupported.
 type Shadowsocks2022Config struct {
 	Address  string
 	Method   string
@@ -89,6 +90,10 @@ func (c *Shadowsocks2022Client) OpenTCP(ctx context.Context, destination string,
 }
 
 func (c *Shadowsocks2022Client) dialUpstream(ctx context.Context) (net.Conn, error) {
+	return c.dialNetwork(ctx, "tcp")
+}
+
+func (c *Shadowsocks2022Client) dialNetwork(ctx context.Context, network string) (net.Conn, error) {
 	address := net.JoinHostPort(c.host, c.port)
 	if net.ParseIP(c.host) == nil {
 		resolved, err := c.network.Resolve(c.host)
@@ -112,7 +117,7 @@ func (c *Shadowsocks2022Client) dialUpstream(ctx context.Context) (net.Conn, err
 		}
 		return protectErr
 	}}
-	conn, err := dialer.DialContext(ctx, "tcp", address)
+	conn, err := dialer.DialContext(ctx, network, address)
 	if err != nil {
 		return nil, err
 	}
@@ -125,3 +130,57 @@ func (c *Shadowsocks2022Client) dialUpstream(ctx context.Context) (net.Conn, err
 }
 
 func (c *Shadowsocks2022Client) Close() error { return nil }
+
+// OpenUDPAssociation opens an authenticated SS2022 UDP session to the selected node.
+func (c *Shadowsocks2022Client) OpenUDPAssociation() (*Shadowsocks2022UDPAssociation, error) {
+	if c == nil || c.method == nil {
+		return nil, errors.New("Shadowsocks 2022 client is closed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	conn, err := c.dialNetwork(ctx, "udp")
+	if err != nil {
+		return nil, err
+	}
+	_ = conn.SetDeadline(time.Time{})
+	return &Shadowsocks2022UDPAssociation{packet: c.method.DialPacketConn(conn)}, nil
+}
+
+type Shadowsocks2022UDPAssociation struct{ packet N.NetPacketConn }
+
+func (a *Shadowsocks2022UDPAssociation) WriteTo(payload []byte, address string) error {
+	host, portText, err := net.SplitHostPort(address)
+	if err != nil || host == "" {
+		return errors.New("invalid SS2022 UDP destination")
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port < 1 || port > 65535 {
+		return errors.New("invalid SS2022 UDP port")
+	}
+	if len(payload) > 64000 {
+		return errors.New("SS2022 UDP payload too large")
+	}
+	_, err = a.packet.WriteTo(payload, M.ParseSocksaddr(address))
+	return err
+}
+func (a *Shadowsocks2022UDPAssociation) Read(ctx context.Context) (UDPMessage, error) {
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = a.packet.SetReadDeadline(deadline)
+	}
+	done := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() { _ = a.packet.SetReadDeadline(time.Now()); close(done) })
+	buffer := make([]byte, 65535)
+	n, address, err := a.packet.ReadFrom(buffer)
+	if !stop() {
+		<-done
+	}
+	_ = a.packet.SetReadDeadline(time.Time{})
+	if ctx.Err() != nil {
+		return UDPMessage{}, ctx.Err()
+	}
+	if err != nil {
+		return UDPMessage{}, err
+	}
+	return UDPMessage{Address: address.String(), Payload: append([]byte(nil), buffer[:n]...)}, nil
+}
+func (a *Shadowsocks2022UDPAssociation) Close() error { return a.packet.Close() }

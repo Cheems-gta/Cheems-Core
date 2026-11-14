@@ -79,3 +79,8 @@ To validate on a phone after the CI artifact is verified: install the integrated
 ## Shadowsocks 2022 TCP checkpoint
 
 SS2022 TCP is wired through the independent `github.com/sagernet/sing-shadowsocks` v0.2.9 protocol library and protected native upstream sockets. Import accepts standard base64 PSKs of the exact method key size for `2022-blake3-aes-128-gcm`, `2022-blake3-aes-256-gcm`, and `2022-blake3-chacha20-poly1305`. Multi-key identities, plugins and SS2022 UDP remain unsupported. The local reference-service TCP echo test and Go race/vet checks pass; Android binding, provider interoperability and physical-device validation remain release gates. The dependency is GPL-3.0-or-later, with source/license distribution obligations required before APK release. No APK is delivered at this checkpoint.
+
+
+## SS2022 UDP checkpoint
+
+The SS2022 native TUN adapter now routes UDP through protected connected sockets to the selected node. Local reference-service UDP echo tests pass for AES-128-GCM, AES-256-GCM and ChaCha20-Poly1305, with context cancellation and rejected-protection checks. DNS can use this UDP backend and retains the existing same-node TCP fallback. This supersedes the earlier TCP-only checkpoint; UDP remains experimental pending provider and Android device verification. No APK is delivered.

@@ -23,7 +23,7 @@ public final class ProtocolRegistry {
         new Capability("SOCKS5 TCP CONNECT", Status.IMPLEMENTED),
         new Capability("SOCKS5 UDP ASSOCIATE (VPN alpha)", Status.EXPERIMENTAL),
         new Capability("Shadowsocks AEAD TCP", Status.IMPLEMENTED),
-        new Capability("Shadowsocks 2022 TCP (experimental)", Status.EXPERIMENTAL),
+        new Capability("Shadowsocks 2022 TCP/UDP (experimental)", Status.EXPERIMENTAL),
         new Capability("Trojan TCP/TLS", Status.IMPLEMENTED),
         new Capability("VLESS TCP+TLS (experimental)", Status.EXPERIMENTAL),
         new Capability("VMess TCP/TLS + UDP (experimental)", Status.EXPERIMENTAL),

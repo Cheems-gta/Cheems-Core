@@ -37,7 +37,7 @@ public final class TransportCapabilities {
 
   public static boolean canDialUdp(String protocol) {
     // Native AAR-backed VPN transports only; this does not imply server support.
-    return protocol != null && (protocol.equalsIgnoreCase("socks5") || protocol.equalsIgnoreCase("vmess"));
+    return protocol != null && (protocol.equalsIgnoreCase("socks5") || protocol.equalsIgnoreCase("vmess") || protocol.equalsIgnoreCase("ss2022"));
   }
 
   public static boolean requiresQuic(String protocol) {

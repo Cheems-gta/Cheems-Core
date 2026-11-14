@@ -69,6 +69,14 @@ func (b vmessUDPBackend) OpenUDPAssociation(destination string) (udpAssociation,
 	return b.client.OpenUDPAssociation(destination)
 }
 
+type shadowsocks2022UDPBackend struct {
+	client *quictransport.Shadowsocks2022Client
+}
+
+func (b shadowsocks2022UDPBackend) OpenUDPAssociation(string) (udpAssociation, error) {
+	return b.client.OpenUDPAssociation()
+}
+
 // Start authenticates and opens a local TCP-only SOCKS5 listener.
 // Must be called from an Android background thread.
 // Network is implemented by the Android VPN service using its physical network.
@@ -433,8 +441,7 @@ func StartVMessWithNetwork(host string, port int, sni string, userUUID string, s
 	return nil
 }
 
-// StartShadowsocks2022WithNetwork starts the supported SS2022 TCP adapter.
-// UDP relay is kept as a separate capability until its Android path is wired.
+// StartShadowsocks2022WithNetwork starts the experimental SS2022 TCP/UDP adapter.
 func StartShadowsocks2022WithNetwork(host string, port int, method string, psk string, localPort int, localSecret string, network Network) error {
 	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
 		return errors.New("invalid server or local port")
@@ -483,7 +490,7 @@ func StartShadowsocks2022WithNetwork(host string, port int, method string, psk s
 	ss2022Client = client
 	socks5Client = nil
 	activeTCP = client
-	activeUDP = nil
+	activeUDP = shadowsocks2022UDPBackend{client: client}
 	server = newServer
 	startNetwork = network
 	running.Store(true)
