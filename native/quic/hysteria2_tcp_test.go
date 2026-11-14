@@ -53,3 +53,36 @@ func TestTCPRequiresAuthenticatedSession(t *testing.T) {
  var session *Hysteria2Session
  if _,err:=session.OpenTCP(context.Background(),"example.com",443);err==nil { t.Fatal("expected authentication failure") }
 }
+
+type partialWriter struct { bytes.Buffer }
+func (w *partialWriter) Write(p []byte)(int,error){
+ if len(p)>3 {p=p[:3]}
+ return w.Buffer.Write(p)
+}
+
+func TestTCPRequestHandlesPartialWrites(t *testing.T){
+ var full bytes.Buffer
+ if err:=WriteTCPRequest(&full,"example.com:443");err!=nil{t.Fatal(err)}
+ var partial partialWriter
+ if err:=WriteTCPRequest(&partial,"example.com:443");err!=nil{t.Fatal(err)}
+ // Padding is randomized, so only compare the framing and total length.
+ if partial.Len()!=full.Len(){t.Fatalf("partial writer lost bytes: %d != %d",partial.Len(),full.Len())}
+ reader:=quicvarint.NewReader(&partial.Buffer)
+ typ,err:=quicvarint.Read(reader)
+ if err!=nil || typ!=tcpRequestID{t.Fatalf("invalid TCP frame: %d %v",typ,err)}
+}
+
+func TestTCPResponseUnbufferedPayload(t *testing.T){
+ var raw bytes.Buffer
+ raw.WriteByte(0)
+ raw.Write(quicvarint.Append(nil,0))
+ raw.Write(quicvarint.Append(nil,0))
+ raw.WriteString("HTTP/1.1 200 OK\\r\\n")
+ // bytes.Reader has no ReadByte() on the io.Reader interface used by the
+ // decoder, so a buffered adapter would otherwise consume payload ahead.
+ reader:=bytes.NewReader(raw.Bytes())
+ if err:=ReadTCPResponse(reader);err!=nil{t.Fatal(err)}
+ remaining,err:=io.ReadAll(reader)
+ if err!=nil{t.Fatal(err)}
+ if string(remaining)!="HTTP/1.1 200 OK\\r\\n"{t.Fatalf("response payload lost: %q",remaining)}
+}
