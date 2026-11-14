@@ -21,8 +21,9 @@ import (
 // Hysteria2Session owns an authenticated HTTP/3 control transport and a QUIC
 // connection. Android's optional native build bridges this to its local proxy.
 type Hysteria2Session struct {
-	Transport *Transport
-	http3     *http3.Transport
+	Transport  *Transport
+	http3      *http3.Transport
+	UDPEnabled bool
 }
 
 type Hysteria2Config struct {
@@ -102,10 +103,12 @@ func DialHysteria2(ctx context.Context, cfg Hysteria2Config) (*Hysteria2Session,
 		session.Close()
 		return nil, fmt.Errorf("Hysteria 2 HTTP/3 authentication: %w", err)
 	}
-	if err = CheckAuthenticationResponse(resp); err != nil {
+	udpEnabled, authErr := Hysteria2UDPFromResponse(resp)
+	if err = authErr; err != nil {
 		session.Close()
 		return nil, err
 	}
+	session.UDPEnabled = udpEnabled
 	return session, nil
 }
 
@@ -134,8 +137,14 @@ func AuthenticationRequest(ctx context.Context, serverName, password string) (*h
 }
 
 func CheckAuthenticationResponse(resp *http.Response) error {
+	_, err := Hysteria2UDPFromResponse(resp)
+	return err
+}
+
+// Hysteria2UDPFromResponse checks protocol authentication and server UDP support.
+func Hysteria2UDPFromResponse(resp *http.Response) (bool, error) {
 	if resp == nil {
-		return errors.New("missing Hysteria 2 authentication response")
+		return false, errors.New("missing Hysteria 2 authentication response")
 	}
 	// HY2 authentication is decided by the HTTP/3 status, not a response body.
 	// Reading to EOF can block indefinitely if a server keeps the stream open.
@@ -144,9 +153,9 @@ func CheckAuthenticationResponse(resp *http.Response) error {
 		_ = resp.Body.Close()
 	}
 	if resp.StatusCode != 233 {
-		return fmt.Errorf("Hysteria 2 authentication rejected (HTTP %d)", resp.StatusCode)
+		return false, fmt.Errorf("Hysteria 2 authentication rejected (HTTP %d)", resp.StatusCode)
 	}
-	return nil
+	return strings.EqualFold(strings.TrimSpace(resp.Header.Get("Hysteria-UDP")), "true"), nil
 }
 
 func (s *Hysteria2Session) Close() error {
