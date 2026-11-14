@@ -237,7 +237,7 @@ public final class MainActivity extends Activity {
       types.put(n.type, types.getOrDefault(n.type, 0) + 1);
     }
     summary.setText(
-        "共 " + nodes.size() + " 个 · 可用协议配置 " + supported + " 个\n" + types + "\n实际连通性需验证");
+        "共 " + nodes.size() + " 个 · 可尝试的协议配置 " + supported + " 个\n" + types + "\n证书、认证和真实连通性尚未验证");
   }
 
   private void importDialog() {
