@@ -3,13 +3,18 @@ package win.cheems.core;
 import android.app.*;
 import android.content.*;
 import android.os.IBinder;
+import android.os.ParcelFileDescriptor;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
+import java.net.InetAddress;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.security.SecureRandom;
 import win.cheems.core.net.Hysteria2Native;
 import win.cheems.core.net.Node;
 
-public final class CoreService extends Service {
+public final class CoreService extends VpnService {
   static volatile Node selected;
   static volatile ProxyCore core;
   static volatile boolean connecting;
@@ -21,6 +26,8 @@ public final class CoreService extends Service {
   private static final ArrayDeque<String> events = new ArrayDeque<>();
   private final AtomicBoolean launching = new AtomicBoolean();
   private volatile boolean destroyed;
+  private ParcelFileDescriptor vpnInterface;
+  private android.net.Network physicalNetwork;
 
   static synchronized void log(String s) {
     if (events.size() >= 40) events.removeFirst();
@@ -75,15 +82,15 @@ public final class CoreService extends Service {
   public int onStartCommand(Intent intent, int flags, int id) {
     NotificationManager nm = getSystemService(NotificationManager.class);
     nm.createNotificationChannel(
-        new NotificationChannel("core", "本地代理服务", NotificationManager.IMPORTANCE_LOW));
+        new NotificationChannel("core", "Cheems Core VPN", NotificationManager.IMPORTANCE_LOW));
     PendingIntent open =
         PendingIntent.getActivity(
             this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
     Notification n =
         new Notification.Builder(this, "core")
             .setSmallIcon(android.R.drawable.stat_sys_upload_done)
-            .setContentTitle("Cheems Core · 本地代理")
-            .setContentText("127.0.0.1:8899 · 仅代理显式配置的应用")
+            .setContentTitle("Cheems Core · VPN")
+            .setContentText("正在通过所选节点转发设备流量")
             .setContentIntent(open)
             .setOngoing(true)
             .build();
@@ -114,7 +121,8 @@ public final class CoreService extends Service {
                   else if (customCAPEM != null && !customCAPEM.isBlank())
                     log("本次 HY2 连接使用自定义 CA，并继续校验服务器名称");
                   Hysteria2Native.start(node, Hysteria2Native.LOCAL_SOCKS_PORT,
-                      allowUnverifiedTLS, customCAPEM);
+                      allowUnverifiedTLS, customCAPEM, this);
+                  establishVPNTunnel();
                 }
                 if (destroyed) {
                   if ("hysteria2".equals(node.type)) Hysteria2Native.stop();
@@ -157,6 +165,55 @@ public final class CoreService extends Service {
     return START_NOT_STICKY;
   }
 
+  private android.net.Network choosePhysicalNetwork() {
+    ConnectivityManager cm=getSystemService(ConnectivityManager.class);
+    android.net.Network active=cm.getActiveNetwork();
+    NetworkCapabilities activeCaps=active==null?null:cm.getNetworkCapabilities(active);
+    if(activeCaps!=null && activeCaps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        && !activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return active;
+    for(android.net.Network candidate:cm.getAllNetworks()) {
+      NetworkCapabilities caps=cm.getNetworkCapabilities(candidate);
+      if(caps!=null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+          && !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return candidate;
+    }
+    return null;
+  }
+
+  boolean protectAndBind(long rawFd) {
+    if(rawFd<0 || rawFd>Integer.MAX_VALUE || !protect((int)rawFd)) return false;
+    android.net.Network current=choosePhysicalNetwork();
+    if(current==null) return false;
+    try { current.bindSocket((int)rawFd); physicalNetwork=current; setUnderlyingNetworks(new android.net.Network[]{current}); return true; }
+    catch(IOException e) { return false; }
+  }
+
+  String resolveOnPhysical(String host) throws Exception {
+    android.net.Network current=choosePhysicalNetwork();
+    if(current==null) throw new IOException("No physical network available");
+    InetAddress[] answers=current.getAllByName(host);
+    if(answers.length==0) throw new IOException("Physical DNS returned no addresses");
+    return answers[0].getHostAddress();
+  }
+
+  private void establishVPNTunnel() throws Exception {
+    physicalNetwork=choosePhysicalNetwork();
+    if(physicalNetwork==null) throw new IOException("No physical internet network available");
+    Builder builder=new Builder().setSession("Cheems Core")
+        .setMtu(1500)
+        .addAddress("10.77.0.1",30)
+        .addAddress("fd77:77::1",126)
+        .addRoute("0.0.0.0",0)
+        .addRoute("::",0)
+        .addDnsServer("10.77.0.2")
+        .addDnsServer("fd77:77::2")
+        .addDisallowedApplication(getPackageName());
+    vpnInterface=builder.establish();
+    if(vpnInterface==null) throw new IOException("Android denied VPN interface establishment");
+    setUnderlyingNetworks(new android.net.Network[]{physicalNetwork});
+    Hysteria2Native.startTunnel(vpnInterface.getFd());
+    log("Android全局VPN和IPv4/IPv6隧道已启动");
+  }
+
   @Override
   public void onDestroy() {
     destroyed = true;
@@ -164,6 +221,9 @@ public final class CoreService extends Service {
     if (watcher != null) watcher.interrupt();
     updateConnecting(false);
     if (ownedCore != null) ownedCore.stop();
+    try { if(Hysteria2Native.isPackaged()) Hysteria2Native.stopTunnel(); }
+    catch(Exception e) { log("TUN关闭异常"); }
+    if(vpnInterface!=null) {try{vpnInterface.close();}catch(IOException ignored){} vpnInterface=null;}
     if (core == ownedCore) core = null;
     if (ownedHttpPassword != null && ownedHttpPassword.equals(localHttpPassword))
       localHttpPassword = null;
@@ -179,7 +239,15 @@ public final class CoreService extends Service {
   }
 
   @Override
+  public void onRevoke() {
+    log("Android VPN 权限已撤销，正在关闭节点和隧道");
+    stopSelf();
+    super.onRevoke();
+  }
+
+  @Override
   public IBinder onBind(Intent i) {
     return null;
   }
 }
+

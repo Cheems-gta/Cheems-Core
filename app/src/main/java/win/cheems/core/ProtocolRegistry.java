@@ -25,7 +25,7 @@ public final class ProtocolRegistry {
         new Capability("Trojan TCP/TLS", Status.IMPLEMENTED),
         new Capability("VMess", Status.PLANNED),
         new Capability("VLESS", Status.PLANNED),
-        new Capability("Hysteria2", Status.PLANNED),
+        new Capability("Hysteria2 (global VPN alpha)", Status.EXPERIMENTAL),
         new Capability("TUIC", Status.PLANNED),
         new Capability("AnyTLS", Status.PLANNED),
         new Capability("WireGuard", Status.PLANNED),
@@ -39,3 +39,4 @@ public final class ProtocolRegistry {
         return false;
     }
 }
+

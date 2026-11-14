@@ -2,6 +2,8 @@ package win.cheems.core.net;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.lang.reflect.InvocationHandler;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,11 +29,19 @@ public final class Hysteria2Native {
   }
 
   public static boolean isPackaged() {
-    try { binding().getMethod("start", String.class, long.class, String.class, String.class, long.class, String.class, boolean.class, String.class, String.class); return true; }
+    try {
+      Class<?> network = Class.forName("go.mobilebridge.Network");
+      binding().getMethod("startWithNetwork", String.class, long.class, String.class, String.class,
+          long.class, String.class, boolean.class, String.class, String.class, network);
+      binding().getMethod("startTunnel", long.class);
+      binding().getMethod("stopTunnel");
+      return true;
+    }
     catch (ReflectiveOperationException | LinkageError e) { return false; }
   }
 
-  public static void start(Node node, int localPort, boolean allowUnverifiedTLS, String customCAPEM) throws Exception {
+  public static void start(Node node, int localPort, boolean allowUnverifiedTLS, String customCAPEM,
+      CoreService vpnService) throws Exception {
     if (!"hysteria2".equals(node.type)) throw new IllegalArgumentException("Hysteria 2 node required");
     if (node.password.isEmpty()) throw new IllegalArgumentException("Missing Hysteria 2 password");
     if (localPort < 1 || localPort > 65535) throw new IllegalArgumentException("Invalid local port");
@@ -47,8 +57,18 @@ public final class Hysteria2Native {
     String token = Base64.getUrlEncoder().withoutPadding().encodeToString(nonce);
     localToken.set(token);
     try {
-      Method start = binding().getMethod("start", String.class, long.class, String.class, String.class, long.class, String.class, boolean.class, String.class, String.class);
-      start.invoke(null, node.host, (long) node.port, node.sni, node.password, (long) localPort, token, allowUnverifiedTLS, platformAndCustomCAPEM, node.certificateSHA256());
+      Class<?> networkType=Class.forName("go.mobilebridge.Network");
+      Object network=Proxy.newProxyInstance(networkType.getClassLoader(),new Class<?>[]{networkType},
+          (proxy,method,args)->{
+            if(method.getName().equals("protect")) return vpnService.protectAndBind((Long)args[0]);
+            if(method.getName().equals("resolve")) return vpnService.resolveOnPhysical((String)args[0]);
+            if(method.getName().equals("toString")) return "CheemsPhysicalNetwork";
+            throw new UnsupportedOperationException(method.getName());
+          });
+      Method start = binding().getMethod("startWithNetwork", String.class, long.class, String.class,
+          String.class, long.class, String.class, boolean.class, String.class, String.class, networkType);
+      start.invoke(null, node.host, (long) node.port, node.sni, node.password, (long) localPort,
+          token, allowUnverifiedTLS, platformAndCustomCAPEM, node.certificateSHA256(),network);
     } catch (ClassNotFoundException e) {
       localToken.compareAndSet(token, null);
       throw new IllegalStateException("Hysteria 2 native AAR is not packaged in this APK", e);
@@ -62,6 +82,16 @@ public final class Hysteria2Native {
       localToken.compareAndSet(token, null);
       throw new IllegalStateException("Hysteria 2 Android 原生桥接异常", e);
     }
+  }
+
+  public static void startTunnel(long fd) throws Exception {
+    try {binding().getMethod("startTunnel",long.class).invoke(null,fd);}
+    catch(InvocationTargetException e){Throwable c=e.getCause();throw new IllegalStateException(c==null?"TUN启动失败":c.getMessage(),c);}
+  }
+
+  public static void stopTunnel() throws Exception {
+    try {binding().getMethod("stopTunnel").invoke(null);}
+    catch(InvocationTargetException e){Throwable c=e.getCause();throw new IllegalStateException(c==null?"TUN关闭失败":c.getMessage(),c);}
   }
 
   public static void stop() throws Exception {

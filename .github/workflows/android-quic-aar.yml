@@ -123,7 +123,10 @@ jobs:
           jar tf /tmp/cheems-bindings.jar | grep -E "\\.class$" | head -80
           jar tf /tmp/cheems-bindings.jar | grep -Fx "go/mobilebridge/Mobilebridge.class"
           javap -classpath /tmp/cheems-bindings.jar go.mobilebridge.Mobilebridge > /tmp/cheems-native-api.txt
-          grep -Eq 'start\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String\)' /tmp/cheems-native-api.txt
+          grep -Fx "go/mobilebridge/Network.class" <(jar tf /tmp/cheems-bindings.jar)
+          grep -Eq 'startWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startTunnel\(long\)' /tmp/cheems-native-api.txt
+          grep -Eq 'stopTunnel\(\)' /tmp/cheems-native-api.txt
           grep -Eq 'isRunning\(\)' /tmp/cheems-native-api.txt
           python3 - <<'PY'
           from pathlib import Path

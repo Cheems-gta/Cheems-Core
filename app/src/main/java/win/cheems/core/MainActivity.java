@@ -1,6 +1,7 @@
 package win.cheems.core;
 
 import android.app.*;
+import android.net.VpnService;
 import android.content.*;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -26,6 +27,10 @@ public final class MainActivity extends Activity {
   private TextView status, metrics, logs, summary;
   private Spinner spinner;
   private boolean busy;
+  private static final int VPN_PERMISSION_REQUEST=7134;
+  private Node pendingVpnNode;
+  private boolean pendingAllowUnverifiedTLS;
+  private String pendingTrustedCAPEM;
   private final Runnable tick =
       new Runnable() {
         public void run() {
@@ -132,7 +137,7 @@ public final class MainActivity extends Activity {
       message("已复制本次会话的代理用户名和密码。请仅在你信任的应用中配置代理。");
     });
     actions.addView(
-        label("监听 127.0.0.1:8899（HTTP CONNECT，需要 Basic 认证）。请为使用代理的应用配置本次会话的用户名/密码；本版尚未接入 Android 全局 VPN。", 13, muted));
+        label("HY2 节点会建立 Android 全局 VPN（TCP、DNS 与服务端支持的 UDP 经节点转发）。本地 HTTP CONNECT 代理仍监听 127.0.0.1:8899；其他协议尚未接入全局隧道。", 13, muted));
     LinearLayout events = card(root);
     events.addView(label("03  运行记录", 17, ink));
     logs = label("等待导入节点", 12, muted);
@@ -217,6 +222,27 @@ public final class MainActivity extends Activity {
   }
 
   private void startProxy(Node node, boolean allowUnverifiedTLS, String trustedCAPEM) {
+    Intent prepare=VpnService.prepare(this);
+    if(prepare!=null) {
+      pendingVpnNode=node;
+      pendingAllowUnverifiedTLS=allowUnverifiedTLS;
+      pendingTrustedCAPEM=trustedCAPEM;
+      startActivityForResult(prepare,VPN_PERMISSION_REQUEST);
+      return;
+    }
+    launchVpnService(node,allowUnverifiedTLS,trustedCAPEM);
+  }
+
+  @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
+    super.onActivityResult(requestCode,resultCode,data);
+    if(requestCode!=VPN_PERMISSION_REQUEST)return;
+    Node node=pendingVpnNode;boolean insecure=pendingAllowUnverifiedTLS;String ca=pendingTrustedCAPEM;
+    pendingVpnNode=null;pendingTrustedCAPEM=null;pendingAllowUnverifiedTLS=false;
+    if(resultCode==RESULT_OK && node!=null)launchVpnService(node,insecure,ca);
+    else {CoreService.connecting=false;CoreService.lastFailure="VPN权限未授予";CoreService.log("Android VPN权限请求已取消");refresh();}
+  }
+
+  private void launchVpnService(Node node, boolean allowUnverifiedTLS, String trustedCAPEM) {
     if (Build.VERSION.SDK_INT >= 33
         && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -496,3 +522,4 @@ public final class MainActivity extends Activity {
     super.onDestroy();
   }
 }
+

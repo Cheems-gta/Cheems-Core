@@ -16,14 +16,15 @@ import (
 )
 
 var (
-	mu          sync.Mutex
-	session     *quictransport.Hysteria2Session
-	server      *quictransport.SOCKS5Server
-	starting    bool
-	generation  uint64
-	running     atomic.Bool
-	lastError   string
-	startCancel context.CancelFunc
+	mu           sync.Mutex
+	session      *quictransport.Hysteria2Session
+	server       *quictransport.SOCKS5Server
+	starting     bool
+	generation   uint64
+	running      atomic.Bool
+	lastError    string
+	startCancel  context.CancelFunc
+	startNetwork Network
 )
 
 // Start authenticates and opens a local TCP-only SOCKS5 listener.
@@ -101,6 +102,7 @@ func start(host string, port int, sni string, password string, localPort int, lo
 	}
 	session = newSession
 	server = newServer
+	startNetwork = network
 	running.Store(true)
 	lastError = ""
 	mu.Unlock()
@@ -151,6 +153,7 @@ func recordFailure(startGeneration uint64, err error) {
 // Stop invalidates even an in-progress startup; never waits for network dial
 // with the mutex held. Both calls are safe to repeat.
 func Stop() {
+	StopTunnel()
 	mu.Lock()
 	generation++
 	starting = false
@@ -160,6 +163,7 @@ func Stop() {
 	oldSession := session
 	server = nil
 	session = nil
+	startNetwork = nil
 	running.Store(false)
 	mu.Unlock()
 	if cancel != nil {

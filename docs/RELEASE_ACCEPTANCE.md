@@ -17,7 +17,7 @@ This scope is not a claim of universal protocol compatibility.
 - Hysteria 2 has a Go QUIC implementation and Android loopback bridge.
 - AnyTLS import and framing helpers exist; complete interoperability is pending.
 - VMess, VLESS/Reality, TUIC and SS2022 adapters are pending.
-- System-wide VPNService/TUN forwarding and UDP forwarding are pending.
+- Android VPNService/TUN forwarding is implemented as a HY2-only alpha path; generic UDP forwarding requires server support and has not been device-tested.
 - Existing provider observations: certificate authority rejection and QUIC timeout.
 
 ## Trust-store correction
