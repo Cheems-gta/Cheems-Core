@@ -127,7 +127,8 @@ public final class MainActivity extends Activity {
     root.addView(
         label(
             "已实现：SS AEAD · Trojan TCP/TLS · SOCKS5 · HTTP(S)\n"
-                + "暂不支持：VMess、VLESS、HY2、SS 2022、插件、UDP。\n"
+                + "HY2：原生版本支持实验性 TCP 转发；始终验证服务器证书。\\n"
+                + "暂不支持：VMess、VLESS、AnyTLS、SS 2022、插件、UDP。\\n"
                 + "节点凭据仅加密保存在本机，不上传到项目仓库。",
             12,
             muted));
