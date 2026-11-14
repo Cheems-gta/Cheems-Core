@@ -10,7 +10,10 @@ public final class Node {
 
   public Node(Map<String, Object> m) {
     source = Collections.unmodifiableMap(new LinkedHashMap<>(m));
-    type = value(m, "type", "").toLowerCase(Locale.ROOT).equals("hy2") ? "hysteria2" : value(m, "type", "").toLowerCase(Locale.ROOT);
+    String rawType = value(m, "type", "").toLowerCase(Locale.ROOT);
+    String parsedCipher = value(m, "cipher", "").toLowerCase(Locale.ROOT);
+    type = rawType.equals("hy2") ? "hysteria2"
+        : rawType.equals("ss") && parsedCipher.startsWith("2022-blake3-") ? "ss2022" : rawType;
     host = value(m, "server", "");
     int p;
     try {
@@ -38,13 +41,14 @@ public final class Node {
     else if (type.equals("vmess") && !value(m, "header-type", "none").equalsIgnoreCase("none")) reason = "暂不支持 VMess TCP header type " + value(m, "header-type", "");
     else if (type.equals("vmess") && !value(m, "client-fingerprint", "").isEmpty()) reason = "VMess 客户端 TLS 指纹尚未实现";
     else if (type.equals("vmess") && !value(m, "path", "").isEmpty()) reason = "当前 VMess TCP 模式不接受 path 参数";
+    else if (type.equals("ss2022") && !validSS2022Key(cipher, password)) reason = "Shadowsocks 2022 PSK 格式或长度无效";
     else if (type.equals("hysteria2") && (!value(m, "obfs", "").isEmpty() || !value(m, "obfs-password", "").isEmpty()))
       reason = "当前独立内核尚不支持 Hysteria 2 混淆（Salamander）";
     else if (type.equals("hysteria2") && m.containsKey("ports"))
       reason = "当前独立内核尚不支持 Hysteria 2 端口跳跃";
     else if (type.equals("anytls") && !value(m, "client-fingerprint", "").isEmpty())
       reason = "AnyTLS 客户端 TLS 指纹尚未实现";
-    else if (!Arrays.asList("ss", "trojan", "socks5", "http", "hysteria2", "anytls", "vless", "vmess").contains(type))
+    else if (!Arrays.asList("ss", "ss2022", "trojan", "socks5", "http", "hysteria2", "anytls", "vless", "vmess").contains(type))
       reason = "暂未实现 " + type + " 协议";
     else if (m.containsKey("plugin") && !value(m, "plugin", "").isEmpty()) reason = "暂不支持插件传输";
     else if (!Arrays.asList("tcp", "").contains(value(m, "network", "tcp")))
@@ -98,6 +102,15 @@ public final class Node {
     } catch (NumberFormatException e) {
       return false;
     }
+  }
+
+  private static boolean validSS2022Key(String method, String password) {
+    int expected = "2022-blake3-aes-128-gcm".equals(method) ? 16
+        : ("2022-blake3-aes-256-gcm".equals(method)
+            || "2022-blake3-chacha20-poly1305".equals(method)) ? 32 : 0;
+    if (expected == 0 || password.isEmpty()) return false;
+    try { return Base64.getDecoder().decode(password).length == expected; }
+    catch (IllegalArgumentException e) { return false; }
   }
 
   public static String value(Map<?, ?> m, String key, String fallback) {

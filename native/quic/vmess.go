@@ -17,8 +17,9 @@ import (
 	M "github.com/sagernet/sing/common/metadata"
 )
 
-// VMessConfig supports VMess TCP with optional verified TLS. WebSocket, gRPC,
-// HTTP obfuscation, fingerprint impersonation and UDP are not included here.
+// VMessConfig supports VMess TCP and per-destination UDP packet streams with
+// optional verified TLS. WebSocket, gRPC, HTTP obfuscation and client TLS
+// fingerprint impersonation are not included here.
 type VMessConfig struct {
 	Address      string
 	ServerName   string

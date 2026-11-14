@@ -15,6 +15,7 @@ public final class TransportCapabilities {
     if (protocol == null) return Status.NOT_IMPLEMENTED;
     switch (protocol.toLowerCase(Locale.ROOT)) {
       case "ss":
+      case "ss2022":
       case "trojan":
       case "socks5":
       case "http":

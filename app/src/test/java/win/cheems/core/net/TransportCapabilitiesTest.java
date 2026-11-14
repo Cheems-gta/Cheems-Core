@@ -5,7 +5,7 @@ import static org.junit.Assert.*;
 
 public class TransportCapabilitiesTest {
   @Test public void supportedTcpTransportsAreAdvertised() {
-    for (String p : new String[]{"ss","trojan","socks5","http"}) {
+    for (String p : new String[]{"ss","ss2022","trojan","socks5","http"}) {
       assertTrue(p, TransportCapabilities.canDialTcp(p));
     }
   }

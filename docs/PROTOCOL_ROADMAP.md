@@ -40,3 +40,8 @@ No universal 100% compatibility claim: variants and protocol versions evolve.
 - SOCKS5 TCP and UDP flows use the selected authenticated SOCKS5 node via CONNECT and UDP ASSOCIATE; DNS falls back to TCP over that same node if the relay fails. This requires provider UDP relay support. AnyTLS/VLESS UDP is not implemented. VLESS Reality, WebSocket, gRPC and XTLS Vision are unsupported. Other UDP flows require HY2 server datagram support. Automatic reconnect/failover and proof of no leaks on real Android devices remain open.
 - AnyTLS `github.com/anytls/sing-anytls` and VMess `github.com/sagernet/sing-vmess` are GPL-3.0-or-later dependencies; license/source distribution obligations must be addressed before distributing an APK.
 - Go race tests and vet pass. Android SDK build, APK inspection, Flybit interoperability, and physical-device traffic tests are still required before distribution. Do not describe this checkpoint as a stable general-purpose VPN.
+
+
+## Shadowsocks 2022 TCP checkpoint
+
+SS2022 TCP is wired through the independent `github.com/sagernet/sing-shadowsocks` v0.2.9 protocol library and protected native upstream sockets. Import accepts standard base64 PSKs of the exact method key size for `2022-blake3-aes-128-gcm`, `2022-blake3-aes-256-gcm`, and `2022-blake3-chacha20-poly1305`. Multi-key identities, plugins and SS2022 UDP remain unsupported. The local reference-service TCP echo test and Go race/vet checks pass; Android binding, provider interoperability and physical-device validation remain release gates. The dependency is GPL-3.0-or-later, with source/license distribution obligations required before APK release. No APK is delivered at this checkpoint.

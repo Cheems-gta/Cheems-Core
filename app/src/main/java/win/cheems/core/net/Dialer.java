@@ -31,7 +31,7 @@ public final class Dialer {
     Socket socket = new Socket();
     track.accept(socket);
     try {
-      boolean internalNative = "hysteria2".equals(node.type) || "anytls".equals(node.type) || "vless".equals(node.type) || "vmess".equals(node.type)
+      boolean internalNative = "hysteria2".equals(node.type) || "anytls".equals(node.type) || "vless".equals(node.type) || "vmess".equals(node.type) || "ss2022".equals(node.type)
           || ("socks5".equals(node.type) && Hysteria2Native.isRunning());
       socket.connect(
           internalNative
@@ -76,6 +76,7 @@ public final class Dialer {
         case "anytls":
         case "vless":
         case "vmess":
+        case "ss2022":
         case "socks5":
           boolean internalNativeProxy = internalNative;
           boolean auth = internalNativeProxy || !node.username.isEmpty();

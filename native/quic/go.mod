@@ -6,6 +6,7 @@ require (
 	github.com/anytls/sing-anytls v0.0.13
 	github.com/quic-go/quic-go v0.48.2
 	github.com/sagernet/sing v0.9.5-0.20260917142815-f37989cadbf0
+	github.com/sagernet/sing-shadowsocks v0.2.9
 	github.com/sagernet/sing-tun v0.9.7-0.20261114080632-40bd6cff5647
 	github.com/sagernet/sing-vmess v0.2.9-0.20261110093549-d800eb57f96c
 	golang.org/x/sys v0.49.0
@@ -20,6 +21,7 @@ require (
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
+	github.com/klauspost/cpuid/v2 v2.0.12 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
@@ -39,4 +41,5 @@ require (
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect
+	lukechampine.com/blake3 v1.4.1 // indirect
 )

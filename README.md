@@ -74,3 +74,8 @@ To validate on a phone after the CI artifact is verified: install the integrated
 - The UI persists useful error status after rapid TLS/QUIC failures so that a failed attempt does not look like an untouched “not started” state.
 - Go regression tests cover strict TLS defaults, malformed trust inputs, leaf certificate pin matching, and CA hostname validation; Android JVM tests cover importing pin and CA fields.
 - This remains a local proxy, not Android system VPN, and build success does not establish connectivity to Flybit. No credentials, subscription URLs, or TLS private keys should be shared in issue reports.
+
+
+## Shadowsocks 2022 TCP checkpoint
+
+SS2022 TCP is wired through the independent `github.com/sagernet/sing-shadowsocks` v0.2.9 protocol library and protected native upstream sockets. Import accepts standard base64 PSKs of the exact method key size for `2022-blake3-aes-128-gcm`, `2022-blake3-aes-256-gcm`, and `2022-blake3-chacha20-poly1305`. Multi-key identities, plugins and SS2022 UDP remain unsupported. The local reference-service TCP echo test and Go race/vet checks pass; Android binding, provider interoperability and physical-device validation remain release gates. The dependency is GPL-3.0-or-later, with source/license distribution obligations required before APK release. No APK is delivered at this checkpoint.
