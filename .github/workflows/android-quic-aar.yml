@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'native/quic/**'
+      - 'app/**'
       - '.github/workflows/android-quic-aar.yml'
 jobs:
   android-aar:
@@ -35,12 +36,16 @@ jobs:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
         run: |
           go mod tidy
+          go test ./... -count=1
+          go vet ./...
           gomobile init
           gomobile bind -target=android -androidapi 28 -o cheems-quic.aar ./mobilebridge
       - name: Package native AAR into Android APK
         run: |
           mkdir -p app/libs
           cp native/quic/cheems-quic.aar app/libs/
+          unzip -p app/libs/cheems-quic.aar classes.jar > /tmp/cheems-bindings.jar
+          jar tf /tmp/cheems-bindings.jar | grep -Fx "go/mobilebridge/Mobilebridge.class"
           python3 - <<'PY'
           from pathlib import Path
           p=Path("app/build.gradle")
