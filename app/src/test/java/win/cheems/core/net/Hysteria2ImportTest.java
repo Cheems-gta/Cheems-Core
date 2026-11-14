@@ -25,8 +25,9 @@ public class Hysteria2ImportTest {
   Node n=Subscription.parse("hy2://example.com:443#Missing").get(0);
   assertTrue(n.unsupported.contains("密码"));
  }
- @Test public void rejectsInsecureTlsConfig() throws Exception {
+ @Test public void insecureHintRequiresNoticeWhileTlsStaysStrict() throws Exception {
   Node n=Subscription.parse("hy2://secret@example.com:443?insecure=1").get(0);
-  assertTrue(n.unsupported.contains("证书"));
+  assertTrue(n.supported());
+  assertTrue(n.hasInsecureTlsFlag());
  }
 }
