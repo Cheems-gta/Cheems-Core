@@ -19,7 +19,7 @@ The native Hysteria 2 implementation is **unverified against a real Flybit node*
 
 ## Builds
 
-- `.github/workflows/android-quic-aar.yml`: tests Go code, builds the Android native AAR, verifies the generated Java bindings, tests/builds/lints the Android app, checks the APK contains `libgojni.so`, verifies debug signing, and uploads a checksummed `Cheems-Core-v0.3.2-hy2-alpha.apk` workflow artifact **only if the CI job passes**.
+- `.github/workflows/android-quic-aar.yml`: tests Go code, builds the Android native AAR, verifies the generated Java bindings, tests/builds/lints the Android app, checks the APK contains `libgojni.so`, verifies debug signing, and uploads a checksummed `Cheems-Core-v0.3.3-hy2-alpha.apk` workflow artifact **only if the CI job passes**.
 - `.github/workflows/android.yml`: legacy Java-only workflow for manual use; **its APK does not contain the Hysteria 2 native engine** and must not be confused with the native build.
 - Build tools: Java 17, Gradle 8.9, Android SDK 35, Android NDK 27.2.12479018, Go and `gomobile`.
 
@@ -49,3 +49,13 @@ Go tests include authentication framing, TCP request/response validation, partia
 - APK versionCode is raised to 5, with an explicitly distinct V0.3.2 alpha artifact.
 
 **Build and interoperability disclaimer:** Commit uploads alone do not confirm the newest GitHub Actions run passed. Hysteria 2 compatibility against actual Flybit endpoints, full Android VPN capture, UDP forwarding, AnyTLS, and automatic failover are still unverified or unimplemented.
+
+## V0.3.3 diagnostic milestone
+
+- HY2 HTTP/3 authentication handling now checks status `233` and closes its response body without reading to EOF. This avoids an unnecessary block when a peer keeps the response stream open.
+- The Android app's **Verify complete proxy forwarding** action checks the full loopback HTTP CONNECT path rather than contacting the selected dialer directly. It requires the current node's foreground proxy to be started.
+- The diagnostic reports distinct stages for: local HTTP proxy connectivity, HTTP CONNECT / proxy authentication or upstream TCP failure, and remote HTTP status. There is **no fallback to an unproxied direct connection**.
+- Android users can copy the last 40 runtime event lines. The diagnostic itself does not print node or proxy passwords; review copied logs before sharing.
+- Unit tests use synthetic loopback proxy interactions and a response body spy. These provide useful regression coverage but **do not establish real Flybit compatibility**.
+
+To validate on a phone after the CI artifact is verified: install the integrated V0.3.3 alpha, import the authorized subscription, select one supported Hysteria 2 node, start the local proxy, run the full forwarding verification, and inspect the diagnostic log for the failed stage. The app is **not** a system-wide VPN and still requires applications to explicitly configure a local proxy and authenticate. Never paste a subscription URL, node password, or local proxy password into an issue or public log.
