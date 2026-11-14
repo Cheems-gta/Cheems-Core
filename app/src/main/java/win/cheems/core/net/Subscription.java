@@ -13,7 +13,7 @@ public final class Subscription {
 
   public static List<Node> parse(String text) throws Exception {
     if (text.length() > MAX_BYTES) throw new IllegalArgumentException("订阅超过 2 MB");
-    text = text.trim();
+    text = text.replace("\uFEFF", "").trim();
     if (!text.contains("://") && !text.contains("proxies") && !text.startsWith("[")) {
       try {
         text = decode(text).trim();
@@ -53,8 +53,15 @@ public final class Subscription {
   }
 
   private static Node parseUri(String link) throws Exception {
-    String scheme = link.substring(0, link.indexOf("://")).toLowerCase(Locale.ROOT);
-    if (!Arrays.asList("ss", "trojan", "socks5", "socks", "http", "https").contains(scheme)) {
+    int delimiter = link.indexOf("://");
+    if (delimiter < 1) throw new IllegalArgumentException("节点分享链接缺少协议名称");
+    String scheme = link.substring(0, delimiter).toLowerCase(Locale.ROOT);
+    if (scheme.equals("hy2")) {
+      scheme = "hysteria2";
+      link = "hysteria2" + link.substring(delimiter);
+    }
+    if (!Arrays.asList("ss", "trojan", "anytls", "hysteria2", "socks5", "socks", "http", "https")
+        .contains(scheme)) {
       Map<String, Object> unsupported = new LinkedHashMap<>();
       unsupported.put("type", scheme);
       unsupported.put("server", "unsupported");
@@ -81,7 +88,9 @@ public final class Subscription {
         "port",
         u.getPort() > 0
             ? u.getPort()
-            : scheme.equals("https") ? 443 : scheme.equals("http") ? 80 : 0);
+            : Arrays.asList("https", "trojan", "anytls", "hysteria2").contains(scheme)
+                ? 443
+                : scheme.equals("http") ? 80 : 0);
     m.put(
         "name",
         u.getRawFragment() == null ? scheme + " · " + u.getHost() : urlDecode(u.getRawFragment()));
@@ -92,7 +101,8 @@ public final class Subscription {
       if (sep < 0) throw new IllegalArgumentException("SS 链接缺少加密方式");
       m.put("cipher", user.substring(0, sep));
       m.put("password", user.substring(sep + 1));
-    } else if (scheme.equals("trojan")) m.put("password", user);
+    } else if (Arrays.asList("trojan", "anytls", "hysteria2").contains(scheme))
+      m.put("password", user);
     else {
       String[] pair = user.split(":", 2);
       m.put("username", pair[0]);
@@ -105,6 +115,9 @@ public final class Subscription {
         if (key.equals("sni") || key.equals("peer")) m.put("sni", v);
         if (key.equals("type")) m.put("network", v);
         if (key.equals("plugin")) m.put("plugin", v);
+        if (scheme.equals("hysteria2") && key.equals("obfs")) m.put("obfs", v);
+        if (scheme.equals("hysteria2") && key.equals("obfs-password")) m.put("obfs-password", v);
+        if (key.equals("alpn")) m.put("alpn", Arrays.asList(v.split(",")));
         if ((key.equals("allowInsecure") || key.equals("insecure"))
             && (v.equals("1") || v.equals("true"))) m.put("skip-cert-verify", true);
       }

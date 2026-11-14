@@ -189,4 +189,25 @@ public class CoreTest {
               StandardCharsets.UTF_8));
     }
   }
+
+  @Test
+  public void modernNodeUrisRetainConnectionParameters() throws Exception {
+    String links =
+        "anytls://p%2Bass@example.com:443?sni=cdn.example.com#A\n"
+            + "hy2://auth%2Btoken@example.com:8443?sni=hy.example.com&obfs=salamander&obfs-password=obfs%2Bkey#B";
+    List<Node> nodes = Subscription.parse(links);
+    assertEquals(2, nodes.size());
+    assertEquals("p+ass", nodes.get(0).password);
+    assertEquals("cdn.example.com", nodes.get(0).sni);
+    assertEquals("hysteria2", nodes.get(1).type);
+    assertEquals("auth+token", nodes.get(1).password);
+    assertEquals("salamander", nodes.get(1).source.get("obfs"));
+    assertEquals("obfs+key", nodes.get(1).source.get("obfs-password"));
+    assertFalse(nodes.get(0).supported());
+    assertFalse(nodes.get(1).supported());
+    String encoded =
+        Base64.getMimeEncoder(24, new byte[] {13, 10})
+            .encodeToString(links.getBytes(StandardCharsets.UTF_8));
+    assertEquals(2, Subscription.parse(encoded).size());
+  }
 }
