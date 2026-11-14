@@ -2,7 +2,9 @@ package quictransport
 
 import (
  "context"
+ "crypto/rand"
  "crypto/tls"
+ "encoding/base64"
  "errors"
  "fmt"
  "io"
@@ -70,6 +72,9 @@ func AuthenticationRequest(ctx context.Context, serverName, password string) (*h
  if err!=nil { return nil,err }
  req.Header.Set("Hysteria-Auth",password)
  req.Header.Set("Hysteria-CC-RX","0")
+ padding:=make([]byte,192)
+ if _,err:=rand.Read(padding);err!=nil{return nil,err}
+ req.Header.Set("Hysteria-Padding",base64.RawURLEncoding.EncodeToString(padding))
  return req,nil
 }
 
