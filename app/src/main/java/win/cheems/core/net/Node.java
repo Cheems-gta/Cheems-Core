@@ -29,8 +29,10 @@ public final class Node {
     else if (type.equals("hysteria2") && password.isEmpty()) reason = "Hysteria 2 缺少认证密码";
     else if (type.equals("hysteria2") && Boolean.parseBoolean(value(m, "skip-cert-verify", "false")))
       reason = "Hysteria 2 配置要求跳过证书验证；当前安全策略不允许";
-    else if (type.equals("hysteria2"))
-      reason = "Hysteria 2 连接引擎尚未接入（需要 QUIC 与认证）；不可连接";
+    else if (type.equals("hysteria2") && (!value(m, "obfs", "").isEmpty() || !value(m, "obfs-password", "").isEmpty()))
+      reason = "当前独立内核尚不支持 Hysteria 2 混淆（Salamander）";
+    else if (type.equals("hysteria2") && m.containsKey("ports"))
+      reason = "当前独立内核尚不支持 Hysteria 2 端口跳跃";
     else if (type.equals("anytls"))
       reason = "AnyTLS 节点已识别，但当前版本尚未实现会话协议；不可连接。请等待真实协议实现和互通测试";
     else if (!Arrays.asList("ss", "trojan", "socks5", "http").contains(type))
