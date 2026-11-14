@@ -31,10 +31,14 @@ public final class Dialer {
     Socket socket = new Socket();
     track.accept(socket);
     try {
-      socket.connect(new InetSocketAddress(node.host, node.port), 10000);
+      socket.connect(
+          "hysteria2".equals(node.type)
+              ? new InetSocketAddress("127.0.0.1", Hysteria2Native.LOCAL_SOCKS_PORT)
+              : new InetSocketAddress(node.host, node.port),
+          10000);
       socket.setSoTimeout(15000);
       socket.setTcpNoDelay(true);
-      if (node.tls()) {
+      if (!"hysteria2".equals(node.type) && node.tls()) {
         SSLSocket tls =
             (SSLSocket)
                 ((SSLSocketFactory) SSLSocketFactory.getDefault())
@@ -66,8 +70,9 @@ public final class Dialer {
           out.write(new byte[] {13, 10});
           out.flush();
           break;
+        case "hysteria2":
         case "socks5":
-          boolean auth = !node.username.isEmpty();
+          boolean auth = "socks5".equals(node.type) && !node.username.isEmpty();
           out.write(auth ? new byte[] {5, 1, 2} : new byte[] {5, 1, 0});
           out.flush();
           byte[] method = Aead.readFully(in, 2);
