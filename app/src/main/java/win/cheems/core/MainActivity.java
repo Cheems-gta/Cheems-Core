@@ -83,7 +83,7 @@ public final class MainActivity extends Activity {
 
           public void onNothingSelected(android.widget.AdapterView<?> a) {}
         });
-    button(imports, "验证所选节点的转发", this::probe);
+    button(imports, "验证完整代理转发（需先启动）", this::probe);
     LinearLayout actions = card(root);
     actions.addView(label("02  本地代理", 17, ink));
     button(
@@ -353,30 +353,37 @@ public final class MainActivity extends Activity {
   }
 
   private void probe() {
-    Node n = current();
-    if (n == null || busy) return;
-    if ("hysteria2".equals(n.type) && !Hysteria2Native.isRunning()) {
-      message("请先启动 Hysteria 2 代理，等待本地连接就绪后再验证转发。");
+    Node node = current();
+    if (node == null || busy) return;
+    ProxyCore activeCore = CoreService.core;
+    if (activeCore == null || !activeCore.running() || CoreService.selected != node) {
+      message("请先启动当前所选节点的代理，再验证完整的 HTTP CONNECT 转发。");
+      return;
+    }
+    if ("hysteria2".equals(node.type) && !Hysteria2Native.isRunning()) {
+      message("本地代理虽然可能正在运行，但 Hysteria 2 原生 QUIC 连接已中断。");
+      return;
+    }
+    String secret = CoreService.localHttpPassword;
+    if (secret == null || secret.isEmpty()) {
+      message("本地代理认证信息不可用，请停止后重新启动。");
       return;
     }
     busy = true;
-    CoreService.log("正在验证节点的 HTTP 转发…");
+    CoreService.log("完整转发诊断：本地 HTTP → 节点 → example.com:80");
     io.execute(
         () -> {
-          long start = System.nanoTime();
-          try (Dialer.Tunnel t = Dialer.connect(n, "example.com", 80, s -> {})) {
-            t.socket.setSoTimeout(15000);
-            t.out.write(
-                "GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n"
-                    .getBytes(StandardCharsets.US_ASCII));
-            t.out.flush();
-            String response = Dialer.header(t.in).split("\r\n")[0];
-            if (!response.matches("HTTP/1\\.[01] [23][0-9][0-9].*"))
-              throw new IOException("Unexpected response");
+          try {
+            LocalProxyProbe.Result result = LocalProxyProbe.check(secret);
             CoreService.log(
-                "转发验证成功 · " + ((System.nanoTime() - start) / 1000000) + " ms · " + response);
+                "完整转发验证成功 · " + result.elapsedMs + " ms · " + result.responseStatus);
           } catch (Exception e) {
-            CoreService.log("转发验证失败 · " + e.getClass().getSimpleName() + "（未回退直连）");
+            // Never print provider credentials or temporary proxy auth tokens.
+            String detail = e.getMessage();
+            CoreService.log("完整转发失败 · "
+                + (detail == null || detail.isBlank()
+                    ? e.getClass().getSimpleName() : detail)
+                + "（没有回退直连）");
           } finally {
             runOnUiThread(() -> busy = false);
           }
