@@ -54,6 +54,13 @@ jobs:
         run: |
           set -o pipefail
           go test ./... -count=1 -v -timeout=90s 2>&1 | tee ../../go-test-report.txt
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "::group::FAILED GO TESTS - compact diagnostic"
+            grep -n -E -- '--- FAIL:|^FAIL|Error:|panic:|fatal error:|\.go:[0-9]+:' ../../go-test-report.txt || true
+            echo "::endgroup::"
+            exit "$status"
+          fi
       - name: Publish sanitized Go test result to commit status
         if: ${{ always() && steps.go_tests.outcome != 'skipped' }}
         env:
