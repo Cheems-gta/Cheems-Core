@@ -9,6 +9,9 @@ on:
 jobs:
   android-aar:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -38,11 +41,47 @@ jobs:
           go install golang.org/x/mobile/cmd/gobind@latest
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Run Go tests with persistent failure report
+        id: go_tests
         working-directory: native/quic
         shell: bash
         run: |
           set -o pipefail
           go test ./... -count=1 -v -timeout=90s 2>&1 | tee ../../go-test-report.txt
+      - name: Publish sanitized Go test result to commit status
+        if: ${{ always() && steps.go_tests.outcome != 'skipped' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TEST_OUTCOME: ${{ steps.go_tests.outcome }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, re, subprocess
+          from pathlib import Path
+          result = os.environ["TEST_OUTCOME"]
+          report = Path("go-test-report.txt")
+          body = report.read_text(errors="replace") if report.exists() else ""
+          failures = re.findall(r"(?m)^\s*--- FAIL:\s*([A-Za-z_][A-Za-z_0-9]*)", body)
+          if result == "success":
+              description = "Go tests passed"
+              state = "success"
+          elif failures:
+              description = "Go failed: " + ", ".join(dict.fromkeys(failures))
+              state = "failure"
+          else:
+              description = "Go test step failed: inspect attached CI report"
+              state = "failure"
+          description = description[:130]
+          print("Sanitized Go test result:", description)
+          subprocess.run([
+              "gh", "api", "--method", "POST",
+              "/repos/{}/statuses/{}".format(os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_SHA"]),
+              "-f", "state="+state,
+              "-f", "context=Cheems-Core/Go-tests",
+              "-f", "description="+description,
+              "-f", "target_url=https://github.com/{}/actions/runs/{}".format(
+                  os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_RUN_ID"])
+          ], check=True)
+          PY
       - name: Upload Go test failure report
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
