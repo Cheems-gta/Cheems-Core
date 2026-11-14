@@ -54,6 +54,26 @@ public final class Subscription {
 
   private static Node parseUri(String link) throws Exception {
     String scheme = link.substring(0, link.indexOf("://")).toLowerCase(Locale.ROOT);
+    if (scheme.equals("anytls")) {
+      URI u = new URI(link);
+      Map<String, Object> m = new LinkedHashMap<>();
+      m.put("type", "anytls");
+      m.put("server", u.getHost() == null ? "" : u.getHost());
+      m.put("port", u.getPort());
+      m.put("name", u.getRawFragment() == null ? "AnyTLS · " + u.getHost() : urlDecode(u.getRawFragment()));
+      String password = u.getRawUserInfo() == null ? "" : urlDecode(u.getRawUserInfo());
+      m.put("password", password);
+      if (u.getRawQuery() != null) {
+        for (String part : u.getRawQuery().split("&")) {
+          String[] kv = part.split("=", 2);
+          String key = urlDecode(kv[0]), value = kv.length == 2 ? urlDecode(kv[1]) : "";
+          if (key.equals("sni") || key.equals("peer") || key.equals("serverName")) m.put("sni", value);
+          if (key.equals("alpn")) m.put("alpn", value);
+          if (key.equals("insecure") || key.equals("allowInsecure")) m.put("skip-cert-verify", value.equals("1") || value.equalsIgnoreCase("true"));
+        }
+      }
+      return new Node(m);
+    }
     if (!Arrays.asList("ss", "trojan", "socks5", "socks", "http", "https").contains(scheme)) {
       Map<String, Object> unsupported = new LinkedHashMap<>();
       unsupported.put("type", scheme);
