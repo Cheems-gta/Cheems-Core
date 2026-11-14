@@ -26,24 +26,28 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: cheems-core-debug-signing-v2
       - name: Build and check debug APK
-        run: gradle :app:assembleDebug :app:lintDebug --stacktrace
+        run: gradle :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --stacktrace
       - name: Verify APK and prepare download
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Cheems-Core-v0.1.0.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose dist/Cheems-Core-v0.1.0.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging dist/Cheems-Core-v0.1.0.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Cheems-Core-v0.2.0.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose dist/Cheems-Core-v0.2.0.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging dist/Cheems-Core-v0.2.0.apk
           cd dist
-          sha256sum Cheems-Core-v0.1.0.apk > SHA256SUMS.txt
+          sha256sum Cheems-Core-v0.2.0.apk > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Cheems-Core-V0.1-debug-apk
+          name: Cheems-Core-V0.2-debug-apk
           path: dist/*
           if-no-files-found: error
       - name: Publish experimental APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v0.1.0-build-${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" dist/Cheems-Core-v0.1.0.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Cheems Core V0.1 experimental (build ${GITHUB_RUN_NUMBER})" --prerelease --notes "Independent Java HTTP CONNECT experimental engine. Debug-signed APK, Android 8.0+. Local listener: 127.0.0.1:8899. No VPNService, system-wide routing or subscription/node protocol support. CI build, Android lint and APK signature checks passed; device testing is not yet complete."
+          TAG="v0.2.0-build-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" dist/Cheems-Core-v0.2.0.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Cheems Core V0.2 experimental (build ${GITHUB_RUN_NUMBER})" --prerelease --notes "Independent Java node proxy. Android 9+. Clash YAML and Base64/share-link imports. Supports SS AEAD, Trojan TCP/TLS, SOCKS5 and HTTP(S). Local HTTP CONNECT listener 127.0.0.1:8899; no system-wide VPN yet. Unsupported protocols are labelled. Credentials encrypted on device. Unit tests, Android lint and APK signature checks passed; real Flybit subscription and physical-device validation remain pending. Debug signing key differs from V0.1: uninstall V0.1 before installing if Android reports a signature conflict."
