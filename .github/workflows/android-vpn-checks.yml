@@ -76,4 +76,4 @@ jobs:
               s = s.replace('dependencies {', 'dependencies {\n implementation files("libs/cheems-quic.aar")', 1)
               p.write_text(s)
           PY
-          gradle :app:compileDebugJavaWithJavac :app:lintDebug --stacktrace
+          gradle :app:testDebugUnitTest :app:compileDebugJavaWithJavac :app:lintDebug --stacktrace
