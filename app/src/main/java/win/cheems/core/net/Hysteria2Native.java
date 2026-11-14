@@ -1,5 +1,6 @@
 package win.cheems.core.net;
 
+import win.cheems.core.CoreService;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;

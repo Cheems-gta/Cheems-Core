@@ -184,7 +184,12 @@ public final class CoreService extends VpnService {
     if(rawFd<0 || rawFd>Integer.MAX_VALUE || !protect((int)rawFd)) return false;
     android.net.Network current=choosePhysicalNetwork();
     if(current==null) return false;
-    try { current.bindSocket((int)rawFd); physicalNetwork=current; setUnderlyingNetworks(new android.net.Network[]{current}); return true; }
+    try (ParcelFileDescriptor descriptor=ParcelFileDescriptor.fromFd((int)rawFd)) {
+      current.bindSocket(descriptor.getFileDescriptor());
+      physicalNetwork=current;
+      setUnderlyingNetworks(new android.net.Network[]{current});
+      return true;
+    }
     catch(IOException e) { return false; }
   }
 
