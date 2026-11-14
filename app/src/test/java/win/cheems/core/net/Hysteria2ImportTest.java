@@ -3,7 +3,7 @@ import org.junit.Test;
 import java.util.List;
 import static org.junit.Assert.*;
 
-/** Node import tests; these do NOT claim QUIC or Hysteria 2 connectivity. */
+/** Node import tests verify supported configuration; they do not prove real QUIC connectivity. */
 public class Hysteria2ImportTest {
  @Test public void parsesHy2ShareLink() throws Exception {
   List<Node> nodes=Subscription.parse("hy2://secret@example.com:443?sni=edge.example.com#Flybit");
@@ -14,12 +14,12 @@ public class Hysteria2ImportTest {
   assertEquals(443,n.port);
   assertEquals("secret",n.password);
   assertEquals("edge.example.com",n.sni);
-  assertFalse(n.supported());
+  assertTrue(n.supported());
  }
  @Test public void parsesYamlNode() throws Exception {
   List<Node> nodes=Subscription.parse("proxies:\n  - name: HY2 test\n    type: hysteria2\n    server: example.com\n    port: 443\n    password: secret\n");
   assertEquals("hysteria2",nodes.get(0).type);
-  assertFalse(nodes.get(0).supported());
+  assertTrue(nodes.get(0).supported());
  }
  @Test public void rejectsMissingCredentials() throws Exception {
   Node n=Subscription.parse("hy2://example.com:443#Missing").get(0);
