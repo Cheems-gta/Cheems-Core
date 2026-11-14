@@ -56,3 +56,15 @@ func (t *Transport) Close() error {
 
 func (t *Transport) LocalAddr() net.Addr { return t.connection.LocalAddr() }
 func (t *Transport) RemoteAddr() net.Addr { return t.connection.RemoteAddr() }
+
+  
+// Done signals a closed QUIC connection, including remote disconnects.
+// The UI must not mistake a still-listening local socket for a live tunnel.
+func (t *Transport) Done() <-chan struct{} {
+ if t==nil || t.connection==nil {
+  closed:=make(chan struct{})
+  close(closed)
+  return closed
+ }
+ return t.connection.Context().Done()
+}
