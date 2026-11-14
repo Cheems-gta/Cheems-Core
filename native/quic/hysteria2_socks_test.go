@@ -72,3 +72,29 @@ func TestSOCKS5NeverBindsPublicInterface(t *testing.T){
  _,err:=listenSOCKS5("0.0.0.0:0",func(context.Context,string,int)(io.ReadWriteCloser,error){return nil,nil},testLocalSecret)
  if err==nil{t.Fatal("must reject public interface")}
 }
+
+func TestSOCKS5RejectsWrongSecret(t *testing.T){
+ server,err:=listenSOCKS5("127.0.0.1:0",func(context.Context,string,int)(io.ReadWriteCloser,error){
+  t.Error("must not dial before valid local authentication")
+  return nil,io.EOF
+ },testLocalSecret)
+ if err!=nil{t.Fatal(err)}
+ defer server.Close()
+ go func(){_ = server.Serve()}()
+ conn,err:=net.DialTimeout("tcp",server.Addr().String(),time.Second)
+ if err!=nil{t.Fatal(err)}
+ defer conn.Close()
+ _=conn.SetDeadline(time.Now().Add(time.Second))
+ if _,err=conn.Write([]byte{5,1,2});err!=nil{t.Fatal(err)}
+ method:=make([]byte,2)
+ if _,err=io.ReadFull(conn,method);err!=nil{t.Fatal(err)}
+ if method[0]!=5 || method[1]!=2{t.Fatalf("expected password auth: %v",method)}
+ wrong:=[]byte("definitely-the-wrong-local-secret-12345")
+ request:=append([]byte{1,5},[]byte("cheems")...)
+ request=append(request,byte(len(wrong)))
+ request=append(request,wrong...)
+ if _,err=conn.Write(request);err!=nil{t.Fatal(err)}
+ answer:=make([]byte,2)
+ if _,err=io.ReadFull(conn,answer);err!=nil{t.Fatal(err)}
+ if answer[0]!=1 || answer[1]!=1{t.Fatalf("invalid secret was accepted: %v",answer)}
+}
