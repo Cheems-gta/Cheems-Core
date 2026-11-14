@@ -1,5 +1,5 @@
-// Package mobilebridge exposes a gomobile API for the Android application.
-// This is a loopback TCP proxy, not a system-wide Android VPNService.
+// Package mobilebridge exposes protected native transports and a gomobile API
+// for the Android VPNService/TUN frontend.
 package mobilebridge
 
 import (
@@ -20,6 +20,7 @@ var (
 	mu           sync.Mutex
 	session      *quictransport.Hysteria2Session
 	anyTLSClient *quictransport.AnyTLSClient
+	vlessClient  *quictransport.VLESSClient
 	activeTCP    tcpBackend
 	server       *quictransport.SOCKS5Server
 	starting     bool
@@ -109,6 +110,7 @@ func start(host string, port int, sni string, password string, localPort int, lo
 	}
 	session = newSession
 	anyTLSClient = nil
+	vlessClient = nil
 	activeTCP = newSession
 	server = newServer
 	startNetwork = network
@@ -202,6 +204,7 @@ func StartAnyTLSWithNetwork(host string, port int, sni string, password string, 
 		return errors.New("AnyTLS startup canceled")
 	}
 	session = nil
+	vlessClient = nil
 	anyTLSClient = client
 	activeTCP = client
 	server = newServer
@@ -221,6 +224,74 @@ func StartAnyTLSWithNetwork(host string, port int, sni string, password string, 
 				mu.Unlock()
 				_ = client.Close()
 				cancel()
+				return
+			}
+			mu.Unlock()
+		}
+	}()
+	return nil
+}
+
+// StartVLESSWithNetwork starts the explicitly supported VLESS TCP+TLS adapter.
+func StartVLESSWithNetwork(host string, port int, sni string, userUUID string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, network Network) error {
+	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
+		return errors.New("invalid server or local port")
+	}
+	if userUUID == "" || len(localSecret) < 24 || len(localSecret) > 255 || network == nil {
+		return errors.New("VLESS UUID, local secret, and protected network callback required")
+	}
+	mu.Lock()
+	if starting || server != nil {
+		mu.Unlock()
+		return errors.New("a native proxy is already starting or running")
+	}
+	starting = true
+	startGeneration := generation
+	mu.Unlock()
+
+	client, err := quictransport.NewVLESSClient(quictransport.VLESSConfig{
+		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
+		UUID: userUUID, Network: network, TrustedCAPEM: customCAPEM,
+		CertificateSHA256: certificateSHA256, AllowUnverifiedTLS: allowUnverifiedTLS,
+	})
+	if err != nil {
+		recordFailure(startGeneration, err)
+		return err
+	}
+	newServer, err := quictransport.ListenSOCKS5WithDialer(fmt.Sprintf("127.0.0.1:%d", localPort), localSecret, client.OpenTCP)
+	if err != nil {
+		recordFailure(startGeneration, err)
+		return err
+	}
+	mu.Lock()
+	if generation == startGeneration {
+		starting = false
+		startCancel = nil
+	}
+	if generation != startGeneration {
+		mu.Unlock()
+		_ = newServer.Close()
+		return errors.New("VLESS startup canceled")
+	}
+	session = nil
+	anyTLSClient = nil
+	vlessClient = client
+	activeTCP = client
+	server = newServer
+	startNetwork = network
+	running.Store(true)
+	lastError = ""
+	mu.Unlock()
+	go func() {
+		if serveErr := newServer.Serve(); serveErr != nil {
+			mu.Lock()
+			if server == newServer {
+				server = nil
+				vlessClient = nil
+				activeTCP = nil
+				running.Store(false)
+				lastError = "VLESS local SOCKS5 listener stopped unexpectedly"
+				mu.Unlock()
 				return
 			}
 			mu.Unlock()
@@ -251,9 +322,11 @@ func Stop() {
 	oldServer := server
 	oldSession := session
 	oldAnyTLS := anyTLSClient
+	oldVLESS := vlessClient
 	server = nil
 	session = nil
 	anyTLSClient = nil
+	vlessClient = nil
 	activeTCP = nil
 	startNetwork = nil
 	running.Store(false)
@@ -269,6 +342,9 @@ func Stop() {
 	}
 	if oldAnyTLS != nil {
 		_ = oldAnyTLS.Close()
+	}
+	if oldVLESS != nil {
+		_ = oldVLESS.Close()
 	}
 }
 

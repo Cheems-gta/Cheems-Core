@@ -16,6 +16,8 @@ public class TransportCapabilitiesTest {
     }
     assertEquals(TransportCapabilities.Status.TCP_READY,TransportCapabilities.status("anytls"));
     assertTrue(TransportCapabilities.canDialTcp("anytls"));
+    assertEquals(TransportCapabilities.Status.TCP_READY,TransportCapabilities.status("vless"));
+    assertTrue(TransportCapabilities.canDialTcp("vless"));
   }
   @Test public void quicRequirementsAreExplicit() {
     assertTrue(TransportCapabilities.requiresQuic("hysteria2"));

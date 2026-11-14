@@ -9,18 +9,19 @@ Experimental independent Android proxy client (Android 9+, Java UI with an optio
 - **Hysteria 2 / HY2 (native VPN alpha):** Go QUIC + HTTP/3 authentication (expects HTTP 233), bidirectional TCP streams, a loopback SOCKS5 bridge and Android `VpnService`/TUN. TCP and DNS use the selected HY2 session; other UDP needs server datagram support.
 - **AnyTLS (native TCP alpha):** authenticated TLS multiplexing through the official `sing-anytls` protocol implementation. TCP and DNS-over-TCP can traverse the Android TUN path. AnyTLS UDP, client TLS fingerprint selection, Flybit interoperability and real-device stability are not verified.
 - HY2 UDP relay remains experimental and depends on the server negotiating UDP datagrams. Unsupported node options must be rejected instead of silently falling back to direct.
-- VMess/VLESS, SS2022, WebSocket plugins, Salamander obfuscation and port hopping are **not implemented**. Unsupported nodes must be marked unavailable rather than silently falling back to direct.
+- **VLESS TCP+TLS (experimental):** standard UUID authentication and TCP transport over verified TLS are routed through Android TUN. Reality, WebSocket, gRPC, XTLS Vision, client TLS fingerprint selection and UDP are explicitly unsupported.
+- VMess, SS2022, WebSocket plugins, Salamander obfuscation and port hopping are **not implemented**. Unsupported nodes must be marked unavailable rather than silently falling back to direct.
 - Hysteria 2 uses strict TLS certificate/hostname verification by default. Users can paste a trusted PEM CA for one connection or use a SHA-256 leaf-certificate pin supplied in the node configuration. Nodes explicitly marked skip-cert-verify may use an unverified connection only after a two-step, session-only security warning. Unverified connections without a pin are vulnerable to impersonation and are not recommended.
 
 ## Android networking limitation
 
-The frontend exposes a local **HTTP CONNECT** server on `127.0.0.1:8899` and an internal native SOCKS5 bridge on `127.0.0.1:10990`. HY2 can also establish an Android VPNService/TUN for system-wide TCP and DNS forwarding. Other UDP depends on HY2 datagram support; other protocol adapters do not yet use the global tunnel.
+The frontend exposes a local **HTTP CONNECT** server on `127.0.0.1:8899` and an internal native SOCKS5 bridge on `127.0.0.1:10990`. HY2, AnyTLS TCP and VLESS TCP+TLS have experimental Android VPNService/TUN paths. AnyTLS/VLESS DNS uses TCP; other UDP depends on HY2 datagram support. Advanced VLESS transports do not use the global tunnel.
 
 The native Hysteria 2 implementation is **unverified against a real Flybit node** and should not be presented as a fully compatible release. The source and unit tests do not prove real-world QUIC interoperability.
 
 ## Android VPN alpha checkpoint (2026-11-14)
 
-The compatibility branch contains experimental HY2 and AnyTLS TCP global VPN paths. AnyTLS DNS uses TCP; AnyTLS UDP is unsupported. Android permission revocation closes the tunnel. Generic UDP beyond HY2 server datagrams, reconnect/failover, Flybit interoperability and real-device stability remain unverified. AnyTLS depends on GPL-3.0-or-later `sing-anytls`; release license/source obligations are not yet completed. No APK is being delivered at this checkpoint.
+The compatibility branch contains experimental HY2, AnyTLS TCP and VLESS TCP+TLS global VPN paths. AnyTLS/VLESS DNS uses TCP; AnyTLS/VLESS UDP is unsupported. Android permission revocation closes the tunnel. Generic UDP beyond HY2 server datagrams, reconnect/failover, Flybit interoperability and real-device stability remain unverified. AnyTLS depends on GPL-3.0-or-later `sing-anytls`; release license/source obligations are not yet completed. No APK is being delivered at this checkpoint.
 
 ## Builds
 
@@ -34,7 +35,7 @@ The debug APK is test-signed; a production release requires a controlled release
 
 Go tests include authentication framing, TCP request/response validation, partial writes, and local SOCKS5 data relay with synthetic destinations. Android JVM tests cover HY2 Clash YAML and share-link parsing, including explicit rejection of unsupported configurations.
 
-**Outstanding**: the new Android VPNService/TUN path has not yet been built by Android CI or validated on a phone, and HY2 has not been verified against a real authorized Flybit node. Source tests alone do not prove leak-free or stable device traffic.
+**Outstanding**: the VPN/TUN code compiles in source CI but has not been validated on a phone. HY2 and AnyTLS have not been verified against real authorized Flybit nodes; VLESS TCP+TLS is covered only by local synthetic-server tests. Source tests do not prove leak-free or stable device traffic.
 
 
 ## V0.3.1 HY2 alpha changes
@@ -53,7 +54,7 @@ Go tests include authentication framing, TCP request/response validation, partia
 - Android 13+ clipboard previews mark copied local proxy authentication credentials as sensitive. Clipboard contents are still accessible to software with permitted clipboard access; do not share the temporary password.
 - APK versionCode is raised to 5, with an explicitly distinct V0.3.2 alpha artifact.
 
-**Build and interoperability disclaimer:** Commit uploads alone do not confirm the newest GitHub Actions run passed. Hysteria 2 compatibility against actual Flybit endpoints, full Android VPN capture, UDP forwarding, AnyTLS, and automatic failover are still unverified or unimplemented.
+**Build and interoperability disclaimer:** Commit uploads alone do not confirm the newest GitHub Actions run passed. HY2/AnyTLS Flybit compatibility, VLESS provider interoperability, full Android VPN capture, unsupported UDP variants and automatic failover still require verification.
 
 ## V0.3.3 diagnostic milestone
 

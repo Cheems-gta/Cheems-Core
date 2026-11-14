@@ -16,8 +16,8 @@ This scope is not a claim of universal protocol compatibility.
 - Java TCP adapters exist for SS AEAD, Trojan, SOCKS5 and HTTP(S).
 - Hysteria 2 has a Go QUIC implementation and Android loopback bridge.
 - AnyTLS has an experimental native TCP adapter and DNS-over-TCP path. Independent local protocol tests pass; Flybit interoperability, Android CI binding validation and device VPN tests remain pending. AnyTLS UDP is unsupported.
-- VMess, VLESS/Reality, TUIC and SS2022 adapters are pending.
-- Android VPNService/TUN forwarding supports experimental HY2 and AnyTLS TCP paths; AnyTLS UDP is unsupported, and neither has passed Flybit real-device validation.
+- VLESS TCP+TLS is experimental; Reality, WebSocket, gRPC, XTLS Vision and UDP remain unsupported. VMess, TUIC and SS2022 adapters are pending.
+- Android VPNService/TUN forwarding supports experimental HY2, AnyTLS TCP and VLESS TCP+TLS paths. AnyTLS/VLESS UDP is unsupported; Flybit real-device validation remains pending.
 - Existing provider observations: certificate authority rejection and QUIC timeout.
 
 ## Trust-store correction
@@ -55,7 +55,7 @@ The Go HY2 configuration now accepts a physical-network resolver and socket
 protection callback. A rejected protection request or DNS failure stops the
 connection without falling back to another resolver. The mobile bridge exposes
 `StartWithNetwork`; existing local-proxy callers keep their previous API.
-The Android VPN service implements and calls this interface for HY2 and AnyTLS TCP. AnyTLS uses the GPL-3.0-or-later `sing-anytls` module; distribution obligations remain a release gate. The TUN path is still alpha; no device stability or leak-free claim is made.
+The Android VPN service implements and calls this interface for HY2, AnyTLS TCP and VLESS TCP+TLS. AnyTLS uses GPL-3.0-or-later `sing-anytls`; distribution obligations remain a release gate. The TUN path is still alpha; no device stability or leak-free claim is made.
 
 A local HTTP/3 test peer verifies TLS trust, HY2 authentication, bidirectional
 TCP stream payload, wrong-password rejection and UDP socket cleanup. Additional

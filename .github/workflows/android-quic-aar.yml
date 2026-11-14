@@ -126,6 +126,7 @@ jobs:
           grep -Fx "go/mobilebridge/Network.class" <(jar tf /tmp/cheems-bindings.jar)
           grep -Eq 'startWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startAnyTLSWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVLESSWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startTunnel\(long\)' /tmp/cheems-native-api.txt
           grep -Eq 'stopTunnel\(\)' /tmp/cheems-native-api.txt
           grep -Eq 'isRunning\(\)' /tmp/cheems-native-api.txt

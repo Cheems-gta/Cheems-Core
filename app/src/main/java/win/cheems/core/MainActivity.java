@@ -137,7 +137,7 @@ public final class MainActivity extends Activity {
       message("已复制本次会话的代理用户名和密码。请仅在你信任的应用中配置代理。");
     });
     actions.addView(
-        label("HY2 建立全局 VPN，TCP 与 DNS 经节点转发；其他 UDP 取决于节点支持。AnyTLS 当前接入 TCP 与 DNS-over-TCP。两者都保留本地 HTTP CONNECT 入口；其他协议尚未接入全局隧道。", 13, muted));
+        label("HY2、AnyTLS 与 VLESS TCP+TLS 可建立实验性全局 VPN。AnyTLS/VLESS 的 DNS 通过 TCP 转发；其他 UDP、VLESS Reality/WS/gRPC 尚不支持。", 13, muted));
     LinearLayout events = card(root);
     events.addView(label("03  运行记录", 17, ink));
     logs = label("等待导入节点", 12, muted);
@@ -156,8 +156,8 @@ public final class MainActivity extends Activity {
     root.addView(
         label(
             "已实现：SS AEAD · Trojan TCP/TLS · SOCKS5 · HTTP(S)\n"
-                + "HY2：实验性 VPN，支持 TCP 与 DNS；其他 UDP 取决于节点。AnyTLS：实验性 TCP VPN。\n"
-                + "暂不支持：VMess、VLESS、SS 2022、协议插件和通用 AnyTLS UDP。\n"
+                + "HY2：实验性 VPN，TCP 与 DNS 可转发；其他 UDP 取决于节点。AnyTLS/VLESS TCP+TLS：实验性 VPN。\n"
+                + "暂不支持：VMess、VLESS Reality/WS/gRPC、SS 2022、协议插件和 AnyTLS UDP。\n"
                 + "节点凭据仅加密保存在本机，不上传到项目仓库。",
             12,
             muted));
@@ -344,7 +344,7 @@ public final class MainActivity extends Activity {
   }
 
   private static boolean nativeProtocol(Node n) {
-    return "hysteria2".equals(n.type) || "anytls".equals(n.type);
+    return "hysteria2".equals(n.type) || "anytls".equals(n.type) || "vless".equals(n.type);
   }
 
   private void importDialog() {

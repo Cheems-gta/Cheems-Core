@@ -61,6 +61,32 @@ public final class Subscription {
     if (separator <= 0)
       throw new IllegalArgumentException("节点分享链接缺少协议头（例如 hysteria2://）");
     String scheme = link.substring(0, separator).toLowerCase(Locale.ROOT);
+    if (scheme.equals("vless")) {
+      URI u = new URI(link);
+      Map<String, Object> m = new LinkedHashMap<>();
+      m.put("type", "vless");
+      m.put("server", u.getHost() == null ? "" : u.getHost().replace("[", "").replace("]", ""));
+      m.put("port", u.getPort());
+      m.put("name", u.getRawFragment() == null ? "VLESS · " + u.getHost() : urlDecode(u.getRawFragment()));
+      m.put("uuid", u.getRawUserInfo() == null ? "" : urlDecode(u.getRawUserInfo()));
+      if (u.getRawQuery() != null) {
+        for (String part : u.getRawQuery().split("&")) {
+          String[] kv = part.split("=", 2);
+          String key = urlDecode(kv[0]), value = kv.length == 2 ? urlDecode(kv[1]) : "";
+          if (key.equals("sni") || key.equals("peer")) m.put("sni", value);
+          if (key.equals("type")) m.put("network", value);
+          if (key.equals("security")) {
+            m.put("tls", value.equalsIgnoreCase("tls") || value.equalsIgnoreCase("reality"));
+            if (value.equalsIgnoreCase("reality")) m.put("reality-opts", Collections.singletonMap("enabled", true));
+          }
+          if (key.equals("flow")) m.put("flow", value);
+          if (key.equals("fp")) m.put("client-fingerprint", value);
+          if (key.equals("allowInsecure") || key.equals("insecure"))
+            m.put("skip-cert-verify", value.equals("1") || value.equalsIgnoreCase("true"));
+        }
+      }
+      return new Node(m);
+    }
     if (scheme.equals("anytls")) {
       URI u = new URI(link);
       Map<String, Object> m = new LinkedHashMap<>();
@@ -173,3 +199,4 @@ public final class Subscription {
     }
   }
 }
+

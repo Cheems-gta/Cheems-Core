@@ -112,7 +112,7 @@ public final class CoreService extends VpnService {
                   throw new IllegalStateException("请选择有效且受支持的节点");
                 }
                 if (destroyed) return;
-                boolean nativeNode = "hysteria2".equals(node.type) || "anytls".equals(node.type);
+                boolean nativeNode = "hysteria2".equals(node.type) || "anytls".equals(node.type) || "vless".equals(node.type);
                 if (nativeNode) {
                   if (!Hysteria2Native.isPackaged()) {
                     throw new IllegalStateException("当前 APK 未打包原生协议内核");

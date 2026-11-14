@@ -19,6 +19,7 @@ public final class TransportCapabilities {
       case "socks5":
       case "http":
       case "anytls":
+      case "vless":
         return Status.TCP_READY;
       case "hysteria2":
       case "hy2":

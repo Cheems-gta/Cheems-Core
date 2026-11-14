@@ -36,6 +36,8 @@ public final class Hysteria2Native {
           long.class, String.class, boolean.class, String.class, String.class, network);
       binding().getMethod("startAnyTLSWithNetwork", String.class, long.class, String.class, String.class,
           long.class, String.class, boolean.class, String.class, String.class, network);
+      binding().getMethod("startVLESSWithNetwork", String.class, long.class, String.class, String.class,
+          long.class, String.class, boolean.class, String.class, String.class, network);
       binding().getMethod("startTunnel", long.class);
       binding().getMethod("stopTunnel");
       return true;
@@ -47,8 +49,9 @@ public final class Hysteria2Native {
       CoreService vpnService) throws Exception {
     boolean hy2 = "hysteria2".equals(node.type);
     boolean anytls = "anytls".equals(node.type);
-    if (!hy2 && !anytls) throw new IllegalArgumentException("Native node protocol required");
-    if (node.password.isEmpty()) throw new IllegalArgumentException("Missing node password");
+    boolean vless = "vless".equals(node.type);
+    if (!hy2 && !anytls && !vless) throw new IllegalArgumentException("Native node protocol required");
+    if ((vless && node.uuid.isEmpty()) || (!vless && node.password.isEmpty())) throw new IllegalArgumentException("Missing node credentials");
     if (localPort < 1 || localPort > 65535) throw new IllegalArgumentException("Invalid local port");
     if (allowUnverifiedTLS && !node.hasInsecureTlsFlag())
       throw new IllegalArgumentException("Unverified TLS requires an explicit insecure provider flag");
@@ -70,23 +73,23 @@ public final class Hysteria2Native {
             if(method.getName().equals("toString")) return "CheemsPhysicalNetwork";
             throw new UnsupportedOperationException(method.getName());
           });
-      String methodName = hy2 ? "startWithNetwork" : "startAnyTLSWithNetwork";
+      String methodName = hy2 ? "startWithNetwork" : anytls ? "startAnyTLSWithNetwork" : "startVLESSWithNetwork";
       Method start = binding().getMethod(methodName, String.class, long.class, String.class,
           String.class, long.class, String.class, boolean.class, String.class, String.class, networkType);
-      start.invoke(null, node.host, (long) node.port, node.sni, node.password, (long) localPort,
+      start.invoke(null, node.host, (long) node.port, node.sni, vless ? node.uuid : node.password, (long) localPort,
           token, allowUnverifiedTLS, platformAndCustomCAPEM, node.certificateSHA256(),network);
     } catch (ClassNotFoundException e) {
       localToken.compareAndSet(token, null);
-      throw new IllegalStateException("Hysteria 2 native AAR is not packaged in this APK", e);
+      throw new IllegalStateException("Native protocol AAR is not packaged in this APK", e);
     } catch (InvocationTargetException e) {
       localToken.compareAndSet(token, null);
       Throwable cause = e.getCause();
       String detail = cause == null ? "未知错误" : cause.getMessage();
       if (detail == null || detail.isBlank()) detail = "未知错误";
-      throw new IllegalStateException("Hysteria 2 建连失败：" + detail, cause);
+      throw new IllegalStateException("节点建连失败：" + detail, cause);
     } catch (ReflectiveOperationException | LinkageError e) {
       localToken.compareAndSet(token, null);
-      throw new IllegalStateException("Hysteria 2 Android 原生桥接异常", e);
+      throw new IllegalStateException("Android 原生协议桥接异常", e);
     }
   }
 
