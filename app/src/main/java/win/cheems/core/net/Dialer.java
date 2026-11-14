@@ -72,15 +72,19 @@ public final class Dialer {
           break;
         case "hysteria2":
         case "socks5":
-          boolean auth = "socks5".equals(node.type) && !node.username.isEmpty();
+          boolean internalHy2 = "hysteria2".equals(node.type);
+          boolean auth = internalHy2 || !node.username.isEmpty();
           out.write(auth ? new byte[] {5, 1, 2} : new byte[] {5, 1, 0});
           out.flush();
           byte[] method = Aead.readFully(in, 2);
           if (method[0] != 5 || method[1] != (auth ? 2 : 0))
             throw new IOException("SOCKS authentication method rejected");
           if (auth) {
-            byte[] user = node.username.getBytes(StandardCharsets.UTF_8),
-                pass = node.password.getBytes(StandardCharsets.UTF_8);
+            String authUser = internalHy2 ? "cheems" : node.username;
+            String authPass = internalHy2 ? Hysteria2Native.localSocksToken() : node.password;
+            if (internalHy2 && authPass.isEmpty()) throw new IOException("HY2 internal SOCKS session unavailable");
+            byte[] user = authUser.getBytes(StandardCharsets.UTF_8),
+                pass = authPass.getBytes(StandardCharsets.UTF_8);
             if (user.length > 255 || pass.length > 255)
               throw new IOException("Credentials too long");
             out.write(1);
