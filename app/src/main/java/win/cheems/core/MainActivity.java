@@ -227,8 +227,7 @@ public final class MainActivity extends Activity {
         () -> {
           try {
             String data = raw;
-            if (raw.startsWith("https://") && !raw.contains("\n") && !raw.contains("@"))
-              data = download(raw);
+            if (raw.matches("(?is)^https?://\\S+$")) data = download(raw);
             List<Node> parsed = Subscription.parse(data);
             Vault.save(this, data);
             runOnUiThread(
@@ -241,7 +240,12 @@ public final class MainActivity extends Activity {
             runOnUiThread(
                 () -> {
                   summary.setText("导入失败");
-                  message("导入失败：请检查网络、订阅有效期与格式。错误类型：" + e.getClass().getSimpleName());
+                  String reason = e.getMessage();
+                  message(
+                      "导入失败："
+                          + (reason == null || reason.isBlank()
+                              ? e.getClass().getSimpleName()
+                              : reason));
                 });
           } finally {
             runOnUiThread(() -> busy = false);
@@ -251,22 +255,33 @@ public final class MainActivity extends Activity {
 
   private String download(String link) throws Exception {
     URL u = new URL(link);
-    for (int redirect = 0; redirect < 5; redirect++) {
-      if (!u.getProtocol().equals("https")) throw new IOException("HTTPS required");
+    for (int redirect = 0; redirect < 8; redirect++) {
+      if (!u.getProtocol().equalsIgnoreCase("https"))
+        throw new IOException("订阅跳转到了 HTTP 明文地址，已阻止下载。请在 Flybit 重新复制 HTTPS 订阅链接。");
       HttpsURLConnection c = (HttpsURLConnection) u.openConnection();
       c.setInstanceFollowRedirects(false);
       c.setConnectTimeout(15000);
       c.setReadTimeout(20000);
-      c.setRequestProperty("User-Agent", "Clash/CheemsCore-0.2");
+      c.setRequestProperty("User-Agent", "clash.meta/1.19.20");
+      c.setRequestProperty("Accept", "application/yaml, text/yaml, text/plain, */*");
+      c.setRequestProperty("Accept-Encoding", "identity");
       try {
         int code = c.getResponseCode();
         if (code >= 300 && code < 400) {
           String target = c.getHeaderField("Location");
-          if (target == null) throw new IOException("Missing redirect");
+          if (target == null) throw new IOException("订阅服务器返回跳转，但没有提供跳转地址。");
           u = new URL(u, target);
           continue;
         }
-        if (code != 200) throw new IOException("HTTP error");
+        if (code != 200) {
+          String reason;
+          if (code == 401 || code == 403)
+            reason = "服务器拒绝订阅请求（HTTP " + code + "）。请确认订阅状态，或在 Flybit 重新复制 Clash 订阅链接。";
+          else if (code == 404) reason = "订阅地址不存在（HTTP 404）。请在 Flybit 后台重新复制完整的 Clash 订阅链接。";
+          else if (code == 429) reason = "订阅请求过于频繁（HTTP 429），请稍后再试。";
+          else reason = "订阅服务器返回 HTTP " + code + "。请检查订阅状态或稍后重试。";
+          throw new IOException(reason);
+        }
         try (InputStream in = c.getInputStream();
             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
           byte[] b = new byte[8192];
@@ -275,13 +290,19 @@ public final class MainActivity extends Activity {
             if (out.size() + n > Subscription.MAX_BYTES) throw new IOException("Too large");
             out.write(b, 0, n);
           }
-          return new String(out.toByteArray(), StandardCharsets.UTF_8);
+          String body =
+              new String(out.toByteArray(), StandardCharsets.UTF_8).replace("\uFEFF", "").trim();
+          if (body.isEmpty()) throw new IOException("订阅服务器返回空内容。请确认后台复制的是 Clash 订阅。");
+          String contentType = c.getContentType();
+          if (contentType != null && contentType.toLowerCase(Locale.ROOT).contains("text/html"))
+            throw new IOException("订阅地址返回了网页而不是节点配置。请使用 Flybit 后台的 Clash 订阅链接，不要用登录或购买页面地址。");
+          return body;
         }
       } finally {
         c.disconnect();
       }
     }
-    throw new IOException("Too many redirects");
+    throw new IOException("订阅服务器连续跳转超过 8 次。请在 Flybit 后台重新复制订阅链接。");
   }
 
   private void probe() {
