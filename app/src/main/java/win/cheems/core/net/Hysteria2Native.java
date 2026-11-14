@@ -9,7 +9,8 @@ import java.lang.reflect.Method;
  * Calls must be made on a background thread.
  */
 public final class Hysteria2Native {
-  private static final String BINDING = "mobilebridge.Mobilebridge";
+  private static final String BINDING = "go.mobilebridge.Mobilebridge";
+  public static final int LOCAL_SOCKS_PORT = 10990;
   private Hysteria2Native() {}
 
   private static Class<?> binding() throws ClassNotFoundException {
