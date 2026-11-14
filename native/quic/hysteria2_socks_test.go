@@ -17,6 +17,7 @@ func TestSOCKS5RelayEndToEnd(t *testing.T){
   local,remote:=net.Pipe()
   go func(){
    defer remote.Close()
+   _=remote.SetDeadline(time.Now().Add(2*time.Second))
    buf:=make([]byte,5)
    if _,err:=io.ReadFull(remote,buf);err!=nil{return}
    if string(buf)!="hello"{return}
