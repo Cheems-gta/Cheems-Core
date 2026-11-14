@@ -16,6 +16,7 @@ public final class CoreService extends Service {
   static volatile String localHttpPassword;
   private String ownedHttpPassword;
   private ProxyCore ownedCore;
+  private volatile Thread connectionMonitor;
   private static final ArrayDeque<String> events = new ArrayDeque<>();
   private final AtomicBoolean launching = new AtomicBoolean();
   private volatile boolean destroyed;
@@ -32,6 +33,29 @@ public final class CoreService extends Service {
   private void updateConnecting(boolean value) {
     // A canceled service must not overwrite the state of its successor.
     if (core == ownedCore) connecting = value;
+  }
+
+  private void watchNativeConnection(int startId) {
+    Thread watcher = new Thread(
+        () -> {
+          while (!destroyed && core == ownedCore) {
+            try {
+              Thread.sleep(2000);
+            } catch (InterruptedException interrupted) {
+              return;
+            }
+            if (destroyed || core != ownedCore) return;
+            if (!Hysteria2Native.isRunning()) {
+              log("Hysteria 2 远端连接已中断，正在关闭失效的本地代理");
+              stopSelfResult(startId);
+              return;
+            }
+          }
+        },
+        "cheems-hy2-watch");
+    watcher.setDaemon(true);
+    connectionMonitor = watcher;
+    watcher.start();
   }
 
   @Override
@@ -87,6 +111,14 @@ public final class CoreService extends Service {
                 }
                 ownedCore.start(node);
                 updateConnecting(false);
+                if ("hysteria2".equals(node.type) && !destroyed) {
+                  if (!Hysteria2Native.isRunning()) {
+                    log("Hysteria 2 连接已丢失，本地代理将停止");
+                    stopSelfResult(id);
+                    return;
+                  }
+                  watchNativeConnection(id);
+                }
                 if (destroyed) {
                   ownedCore.stop();
                   if ("hysteria2".equals(node.type)) Hysteria2Native.stop();
@@ -106,6 +138,8 @@ public final class CoreService extends Service {
   @Override
   public void onDestroy() {
     destroyed = true;
+    Thread watcher = connectionMonitor;
+    if (watcher != null) watcher.interrupt();
     updateConnecting(false);
     if (ownedCore != null) ownedCore.stop();
     if (core == ownedCore) core = null;
