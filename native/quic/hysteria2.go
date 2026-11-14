@@ -7,7 +7,6 @@ import (
  "encoding/base64"
  "errors"
  "fmt"
- "io"
  "net"
  "net/http"
  "net/url"
@@ -20,7 +19,7 @@ import (
 )
 
 // Hysteria2Session owns an authenticated HTTP/3 control transport and a QUIC
-// connection. It is not yet wired to the Android proxy Dialer.
+// connection. Android's optional native build bridges this to its local proxy.
 type Hysteria2Session struct {
  Transport *Transport
  http3 *http3.Transport
@@ -80,7 +79,10 @@ func AuthenticationRequest(ctx context.Context, serverName, password string) (*h
 
 func CheckAuthenticationResponse(resp *http.Response) error {
  if resp==nil { return errors.New("missing Hysteria 2 authentication response") }
- if resp.Body!=nil { io.Copy(io.Discard,io.LimitReader(resp.Body,4096));resp.Body.Close() }
+ // HY2 authentication is decided by the HTTP/3 status, not a response body.
+ // Reading to EOF can block indefinitely if a server keeps the stream open.
+ // Close the response body immediately without blocking on a drain.
+ if resp.Body!=nil { _=resp.Body.Close() }
  if resp.StatusCode!=233 { return fmt.Errorf("Hysteria 2 authentication rejected (HTTP %d)",resp.StatusCode) }
  return nil
 }
