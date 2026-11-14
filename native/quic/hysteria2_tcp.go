@@ -64,8 +64,7 @@ func WriteTCPRequest(w io.Writer,address string) error {
  return nil
 }
 
-func ReadTCPResponse(r io.Reader) error {
- reader:=quicvarint.NewReader(r)
+// unbufferedVarintReader prevents a buffered wrapper from reading ahead into\n// the application payload that follows the Hysteria 2 response frame.\ntype unbufferedVarintReader struct { io.Reader }\nfunc (r unbufferedVarintReader) ReadByte() (byte,error) {\n var b [1]byte\n _,err:=io.ReadFull(r.Reader,b[:])\n return b[0],err\n}\n\nfunc ReadTCPResponse(r io.Reader) error {\n reader:=unbufferedVarintReader{r}
  var status [1]byte
  if _,err:=io.ReadFull(reader,status[:]);err!=nil { return err }
  msgLen,err:=quicvarint.Read(reader)
