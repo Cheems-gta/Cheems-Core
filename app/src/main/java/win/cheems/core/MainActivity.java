@@ -94,15 +94,22 @@ public final class MainActivity extends Activity {
           if (n == null) return;
           if (n.hasInsecureTlsFlag()) {
             new AlertDialog.Builder(this)
-                .setTitle("Hysteria 2 证书提醒")
-                .setMessage("此节点的订阅要求跳过 TLS 证书验证。Cheems Core 不会自动跳过验证，"
-                    + "将使用正常的证书与域名校验尝试连接。如果服务端证书不可信，连接会失败。"
-                    + "请向服务商获取有效证书、正确的 SNI 或可信 CA 配置。")
+                .setTitle("HY2 证书验证方式")
+                .setMessage("订阅要求跳过证书验证，但这可能允许他人冒充节点。"
+                    + "优先使用可信 CA 或证书指纹。以下选择仅对本次连接有效。")
+                .setItems(new String[] {
+                    "严格验证并尝试（推荐）",
+                    "粘贴可信 CA 证书（PEM，本次）",
+                    "按订阅跳过验证（高风险，本次）"
+                }, (dialog, which) -> {
+                  if (which == 0) startProxy(n, false, "");
+                  else if (which == 1) askTrustedCA(n);
+                  else confirmUnverifiedHY2(n);
+                })
                 .setNegativeButton("取消", null)
-                .setPositiveButton("保持验证并尝试", (dialog, which) -> startProxy(n))
                 .show();
           } else {
-            startProxy(n);
+            startProxy(n, false, "");
           }
         });
     button(actions, "停止并关闭连接", () -> stopService(new Intent(this, CoreService.class)));
@@ -144,7 +151,7 @@ public final class MainActivity extends Activity {
     root.addView(
         label(
             "已实现：SS AEAD · Trojan TCP/TLS · SOCKS5 · HTTP(S)\n"
-                + "HY2：原生版本支持实验性 TCP 转发；始终验证服务器证书。\n"
+                + "HY2：实验性 TCP 转发；默认验证证书，可本次导入可信 CA 或明确确认后跳过验证。\n"
                 + "暂不支持：VMess、VLESS、AnyTLS、SS 2022、插件、UDP。\n"
                 + "节点凭据仅加密保存在本机，不上传到项目仓库。",
             12,
@@ -171,14 +178,65 @@ public final class MainActivity extends Activity {
     }
   }
 
-  private void startProxy(Node node) {
+  private void askTrustedCA(Node node) {
+    EditText pem = new EditText(this);
+    pem.setHint("-----BEGIN CERTIFICATE-----");
+    pem.setMinLines(5);
+    pem.setMaxLines(10);
+    pem.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+        | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+    new AlertDialog.Builder(this)
+        .setTitle("粘贴服务商提供的可信 CA 证书")
+        .setMessage("仅接受 PEM 格式证书，不接受文件路径。证书只用于本次连接。"
+            + " 不要粘贴私钥或订阅密码。")
+        .setView(pem)
+        .setNegativeButton("取消", null)
+        .setPositiveButton("验证 CA 并连接", (dialog, which) -> {
+          String value = pem.getText().toString().trim();
+          if (!value.contains("-----BEGIN CERTIFICATE-----")
+              || !value.contains("-----END CERTIFICATE-----") || value.length() > 64 * 1024) {
+            message("请粘贴完整 PEM 格式 CA 证书（不超过 64 KiB）。");
+            return;
+          }
+          startProxy(node, false, value);
+        })
+        .show();
+  }
+
+  private void confirmUnverifiedHY2(Node node) {
+    new AlertDialog.Builder(this)
+        .setTitle("高风险：跳过 HY2 证书验证")
+        .setMessage("如果没有预先可信的证书指纹，攻击者可能冒充代理服务器，"
+            + "甚至窃取连接凭据。这不会永久修改设置，也不会影响其他节点。"
+            + "只在你确认信任当前网络和节点服务商时使用。")
+        .setNegativeButton("返回", null)
+        .setPositiveButton("已知风险，仅本次尝试", (dialog, which) ->
+            startProxy(node, true, ""))
+        .show();
+  }
+
+  private void startProxy(Node node, boolean allowUnverifiedTLS, String trustedCAPEM) {
     if (Build.VERSION.SDK_INT >= 33
         && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
       requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, 1);
     }
     CoreService.selected = node;
-    startForegroundService(new Intent(this, CoreService.class));
+    CoreService.lastFailure = null;
+    CoreService.connecting = true;
+    CoreService.log("正在准备节点连接（证书策略仅对此次连接有效）");
+    Intent service = new Intent(this, CoreService.class);
+    service.putExtra("hy2.allowUnverifiedTls", allowUnverifiedTLS);
+    service.putExtra("hy2.trustedCaPem", trustedCAPEM);
+    try {
+      startForegroundService(service);
+    } catch (RuntimeException e) {
+      CoreService.connecting = false;
+      CoreService.lastFailure = "本地服务启动失败";
+      CoreService.log("启动前台服务失败：" + e.getClass().getSimpleName());
+    }
+    refresh();
   }
 
   private TextView label(String text, int size, int color) {
@@ -410,7 +468,8 @@ public final class MainActivity extends Activity {
     status.setText(
         CoreService.connecting ? "● 正在连接节点…" :
         hy2Disconnected ? "● HY2 远端已断开" :
-        localRunning ? "● 本地代理运行中" : "● 未启动");
+        localRunning ? "● 本地代理运行中" :
+        CoreService.lastFailure != null ? "● 连接失败 · 查看运行记录" : "● 未启动");
     metrics.setText(
         c == null
             ? "连接 0   ↑ 0 B   ↓ 0 B"
