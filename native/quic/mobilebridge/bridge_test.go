@@ -1,11 +1,35 @@
 package mobilebridge
 
 import (
+	"context"
+	"errors"
+	"io"
 	"net"
 	"strings"
 	"testing"
 	"time"
 )
+
+type staticTCPBackend struct{ id int }
+
+func (staticTCPBackend) OpenTCP(context.Context, string, int) (io.ReadWriteCloser, error) {
+	return nil, errors.New("test backend")
+}
+
+func TestTunnelBackendValidationAcceptsAnyNativeTCPBackend(t *testing.T) {
+	old := activeTCP
+	defer func() { activeTCP = old }()
+	backend := staticTCPBackend{id: 1}
+	mu.Lock()
+	activeTCP = backend
+	mu.Unlock()
+	if !tunnelBackendStillActive(backend) {
+		t.Fatal("active AnyTLS/VLESS-compatible TCP backend was rejected")
+	}
+	if tunnelBackendStillActive(staticTCPBackend{id: 2}) {
+		t.Fatal("stale TCP backend was accepted")
+	}
+}
 
 type cancelNetwork struct{ protected chan struct{} }
 

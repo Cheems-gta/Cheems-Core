@@ -75,17 +75,21 @@ func StartTunnel(fd int64) error {
 		_ = device.Close()
 		return err
 	}
-	mu.Lock()
-	stillCurrent := session == current
-	mu.Unlock()
+	stillCurrent := tunnelBackendStillActive(current)
 	if !stillCurrent {
 		cancel()
 		_ = stack.Close()
 		_ = device.Close()
-		return errors.New("HY2 session changed while VPN tunnel started")
+		return errors.New("native TCP backend changed while VPN tunnel started")
 	}
 	tunnelState.device, tunnelState.stack, tunnelState.cancel = device, stack, cancel
 	return nil
+}
+
+func tunnelBackendStillActive(candidate tcpBackend) bool {
+	mu.Lock()
+	defer mu.Unlock()
+	return candidate != nil && activeTCP == candidate
 }
 
 // StopTunnel closes the TUN stack before releasing its duplicated descriptor.
