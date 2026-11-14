@@ -8,6 +8,8 @@ import (
  "time"
 )
 
+const testLocalSecret = "test-internal-local-secret-0123456789"
+
 func TestSOCKS5RelayEndToEnd(t *testing.T){
  called:=make(chan string,1)
  server,err:=listenSOCKS5("127.0.0.1:0",func(ctx context.Context,host string,port int)(io.ReadWriteCloser,error){
@@ -15,7 +17,7 @@ func TestSOCKS5RelayEndToEnd(t *testing.T){
   local,remote:=net.Pipe()
   go func(){defer remote.Close();_,_=io.Copy(remote,remote)}()
   return local,nil
- })
+ },testLocalSecret)
  if err!=nil{t.Fatal(err)}
  defer server.Close()
  go func(){_ = server.Serve()}()
@@ -23,10 +25,17 @@ func TestSOCKS5RelayEndToEnd(t *testing.T){
  if err!=nil{t.Fatal(err)}
  defer conn.Close()
  _=conn.SetDeadline(time.Now().Add(3*time.Second))
- if _,err=conn.Write([]byte{5,1,0});err!=nil{t.Fatal(err)}
+ if _,err=conn.Write([]byte{5,1,2});err!=nil{t.Fatal(err)}
  greeting:=make([]byte,2)
  if _,err=io.ReadFull(conn,greeting);err!=nil{t.Fatal(err)}
- if greeting[0]!=5 || greeting[1]!=0{t.Fatalf("SOCKS greeting: %v",greeting)}
+ if greeting[0]!=5 || greeting[1]!=2{t.Fatalf("SOCKS greeting: %v",greeting)}
+ auth:=append([]byte{1,5},[]byte("cheems")...)
+ auth=append(auth,byte(len(testLocalSecret)))
+ auth=append(auth,[]byte(testLocalSecret)...)
+ if _,err=conn.Write(auth);err!=nil{t.Fatal(err)}
+ response:=make([]byte,2)
+ if _,err=io.ReadFull(conn,response);err!=nil{t.Fatal(err)}
+ if response[0]!=1 || response[1]!=0{t.Fatalf("SOCKS auth failed: %v",response)}
  request:=append([]byte{5,1,0,3,11},[]byte("example.com")...)
  request=append(request,1,187)
  if _,err=conn.Write(request);err!=nil{t.Fatal(err)}
@@ -45,7 +54,7 @@ func TestSOCKS5RejectsAuthentication(t *testing.T){
  server,err:=listenSOCKS5("127.0.0.1:0",func(context.Context,string,int)(io.ReadWriteCloser,error){
   t.Error("unexpected TCP dial")
   return nil,io.EOF
- })
+ },testLocalSecret)
  if err!=nil{t.Fatal(err)}
  defer server.Close()
  go func(){_ = server.Serve()}()
@@ -53,13 +62,13 @@ func TestSOCKS5RejectsAuthentication(t *testing.T){
  if err!=nil{t.Fatal(err)}
  defer conn.Close()
  _=conn.SetDeadline(time.Now().Add(time.Second))
- if _,err=conn.Write([]byte{5,1,2});err!=nil{t.Fatal(err)}
+ if _,err=conn.Write([]byte{5,1,0});err!=nil{t.Fatal(err)}
  result:=make([]byte,2)
  if _,err=io.ReadFull(conn,result);err!=nil{t.Fatal(err)}
  if result[0]!=5 || result[1]!=255{t.Fatalf("expected no acceptable auth method: %v",result)}
 }
 
 func TestSOCKS5NeverBindsPublicInterface(t *testing.T){
- _,err:=listenSOCKS5("0.0.0.0:0",func(context.Context,string,int)(io.ReadWriteCloser,error){return nil,nil})
+ _,err:=listenSOCKS5("0.0.0.0:0",func(context.Context,string,int)(io.ReadWriteCloser,error){return nil,nil},testLocalSecret)
  if err==nil{t.Fatal("must reject public interface")}
 }
