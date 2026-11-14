@@ -29,7 +29,7 @@ func TestSOCKS5RelayEndToEnd(t *testing.T){
  greeting:=make([]byte,2)
  if _,err=io.ReadFull(conn,greeting);err!=nil{t.Fatal(err)}
  if greeting[0]!=5 || greeting[1]!=2{t.Fatalf("SOCKS greeting: %v",greeting)}
- auth:=append([]byte{1,5},[]byte("cheems")...)
+ auth:=append([]byte{1,byte(len("cheems"))},[]byte("cheems")...)
  auth=append(auth,byte(len(testLocalSecret)))
  auth=append(auth,[]byte(testLocalSecret)...)
  if _,err=conn.Write(auth);err!=nil{t.Fatal(err)}
