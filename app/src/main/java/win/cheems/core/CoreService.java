@@ -180,7 +180,7 @@ public final class CoreService extends VpnService {
     return null;
   }
 
-  boolean protectAndBind(long rawFd) {
+  public boolean protectAndBind(long rawFd) {
     if(rawFd<0 || rawFd>Integer.MAX_VALUE || !protect((int)rawFd)) return false;
     android.net.Network current=choosePhysicalNetwork();
     if(current==null) return false;
@@ -193,7 +193,7 @@ public final class CoreService extends VpnService {
     catch(IOException e) { return false; }
   }
 
-  String resolveOnPhysical(String host) throws Exception {
+  public String resolveOnPhysical(String host) throws Exception {
     android.net.Network current=choosePhysicalNetwork();
     if(current==null) throw new IOException("No physical network available");
     InetAddress[] answers=current.getAllByName(host);
