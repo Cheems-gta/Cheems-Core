@@ -62,6 +62,7 @@ jobs:
           grep -Eq 'startAnyTLSWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startVLESSWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startSOCKS5WithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVMessWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, long, boolean, long, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startTunnel\(long\)' /tmp/cheems-native-api.txt
       - name: Compile and lint Android sources (no APK packaging)
         run: |

@@ -21,6 +21,7 @@ var (
 	session      *quictransport.Hysteria2Session
 	anyTLSClient *quictransport.AnyTLSClient
 	vlessClient  *quictransport.VLESSClient
+	vmessClient  *quictransport.VMessClient
 	socks5Client *quictransport.SOCKS5Client
 	activeTCP    tcpBackend
 	activeUDP    udpBackend
@@ -137,6 +138,7 @@ func start(host string, port int, sni string, password string, localPort int, lo
 	session = newSession
 	anyTLSClient = nil
 	vlessClient = nil
+	vmessClient = nil
 	socks5Client = nil
 	activeTCP = newSession
 	if newSession.UDPEnabled {
@@ -239,6 +241,7 @@ func StartAnyTLSWithNetwork(host string, port int, sni string, password string, 
 	}
 	session = nil
 	vlessClient = nil
+	vmessClient = nil
 	socks5Client = nil
 	anyTLSClient = client
 	activeTCP = client
@@ -313,6 +316,7 @@ func StartVLESSWithNetwork(host string, port int, sni string, userUUID string, l
 	session = nil
 	anyTLSClient = nil
 	vlessClient = client
+	vmessClient = nil
 	socks5Client = nil
 	activeTCP = client
 	activeUDP = nil
@@ -327,11 +331,88 @@ func StartVLESSWithNetwork(host string, port int, sni string, userUUID string, l
 			if server == newServer {
 				server = nil
 				vlessClient = nil
+				vmessClient = nil
 				activeTCP = nil
 				activeUDP = nil
 				running.Store(false)
 				lastError = "VLESS local SOCKS5 listener stopped unexpectedly"
 				mu.Unlock()
+				return
+			}
+			mu.Unlock()
+		}
+	}()
+	return nil
+}
+
+// StartVMessWithNetwork starts the supported VMess TCP adapter with optional
+// verified TLS. The importer rejects non-TCP transports and unsupported TLS options.
+func StartVMessWithNetwork(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, network Network) error {
+	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
+		return errors.New("invalid server or local port")
+	}
+	if userUUID == "" || len(localSecret) < 24 || len(localSecret) > 255 || network == nil {
+		return errors.New("VMess UUID, local secret, and protected network callback required")
+	}
+	mu.Lock()
+	if starting || server != nil {
+		mu.Unlock()
+		return errors.New("a native proxy is already starting or running")
+	}
+	starting = true
+	startGeneration := generation
+	mu.Unlock()
+
+	client, err := quictransport.NewVMessClient(quictransport.VMessConfig{
+		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
+		UserID: userUUID, Security: security, AlterID: alterID, TLS: tlsEnabled,
+		Network: network, TrustedCAPEM: customCAPEM,
+	})
+	if err != nil {
+		recordFailure(startGeneration, err)
+		return err
+	}
+	newServer, err := quictransport.ListenSOCKS5WithDialer(fmt.Sprintf("127.0.0.1:%d", localPort), localSecret, client.OpenTCP)
+	if err != nil {
+		_ = client.Close()
+		recordFailure(startGeneration, err)
+		return err
+	}
+	mu.Lock()
+	if generation == startGeneration {
+		starting = false
+		startCancel = nil
+	}
+	if generation != startGeneration {
+		mu.Unlock()
+		_ = newServer.Close()
+		_ = client.Close()
+		return errors.New("VMess startup canceled")
+	}
+	session = nil
+	anyTLSClient = nil
+	vlessClient = nil
+	vmessClient = client
+	socks5Client = nil
+	activeTCP = client
+	activeUDP = nil
+	server = newServer
+	startNetwork = network
+	running.Store(true)
+	lastError = ""
+	mu.Unlock()
+	go func() {
+		if serveErr := newServer.Serve(); serveErr != nil {
+			mu.Lock()
+			if server == newServer {
+				server = nil
+				vmessClient = nil
+				activeTCP = nil
+				activeUDP = nil
+				running.Store(false)
+				lastError = "VMess local SOCKS5 listener stopped unexpectedly"
+				mu.Unlock()
+				_ = client.Close()
 				return
 			}
 			mu.Unlock()
@@ -378,6 +459,7 @@ func StartSOCKS5WithNetwork(host string, port int, username string, password str
 	session = nil
 	anyTLSClient = nil
 	vlessClient = nil
+	vmessClient = nil
 	socks5Client = client
 	activeTCP = client
 	activeUDP = socks5UDPBackend{client: client}
@@ -428,11 +510,13 @@ func Stop() {
 	oldSession := session
 	oldAnyTLS := anyTLSClient
 	oldVLESS := vlessClient
+	oldVMess := vmessClient
 	oldSOCKS5 := socks5Client
 	server = nil
 	session = nil
 	anyTLSClient = nil
 	vlessClient = nil
+	vmessClient = nil
 	socks5Client = nil
 	activeTCP = nil
 	activeUDP = nil
@@ -453,6 +537,9 @@ func Stop() {
 	}
 	if oldVLESS != nil {
 		_ = oldVLESS.Close()
+	}
+	if oldVMess != nil {
+		_ = oldVMess.Close()
 	}
 	if oldSOCKS5 != nil {
 		_ = oldSOCKS5.Close()

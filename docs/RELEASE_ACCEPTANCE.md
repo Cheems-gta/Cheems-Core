@@ -16,7 +16,7 @@ This scope is not a claim of universal protocol compatibility.
 - Java TCP adapters exist for SS AEAD, Trojan, SOCKS5 and HTTP(S).
 - Hysteria 2 has a Go QUIC implementation and Android loopback bridge.
 - AnyTLS has an experimental native TCP adapter and DNS-over-TCP path. Independent local protocol tests pass; Flybit interoperability, Android CI binding validation and device VPN tests remain pending. AnyTLS UDP is unsupported.
-- VLESS TCP+TLS is experimental; Reality, WebSocket, gRPC, XTLS Vision and UDP remain unsupported. VMess, TUIC and SS2022 adapters are pending.
+- VLESS TCP+TLS and VMess TCP/TLS are experimental. VLESS Reality, WebSocket, gRPC, XTLS Vision and UDP, plus VMess WebSocket, gRPC and UDP remain unsupported. VMess is covered by local reference-service TCP tests only. TUIC and SS2022 adapters are pending.
 - Android VPNService/TUN forwarding supports experimental HY2, AnyTLS TCP, VLESS TCP+TLS, and SOCKS5. SOCKS5 uses TCP CONNECT and UDP ASSOCIATE through the selected node; DNS has same-node TCP fallback. Other AnyTLS/VLESS UDP is unsupported; provider interoperability and real-device validation remain pending.
 - Existing provider observations: certificate authority rejection and QUIC timeout.
 
@@ -55,7 +55,7 @@ The Go HY2 configuration now accepts a physical-network resolver and socket
 protection callback. A rejected protection request or DNS failure stops the
 connection without falling back to another resolver. The mobile bridge exposes
 `StartWithNetwork`; existing local-proxy callers keep their previous API.
-The Android VPN service implements and calls this interface for HY2, AnyTLS TCP and VLESS TCP+TLS. AnyTLS uses GPL-3.0-or-later `sing-anytls`; distribution obligations remain a release gate. The TUN path is still alpha; no device stability or leak-free claim is made.
+The Android VPN service implements and calls this interface for HY2, AnyTLS TCP, VLESS TCP+TLS, and VMess TCP/TLS. AnyTLS `sing-anytls` and VMess `sing-vmess` use GPL-3.0-or-later; distribution obligations remain a release gate. The TUN path is still alpha; no device stability or leak-free claim is made.
 
 A local HTTP/3 test peer verifies TLS trust, HY2 authentication, bidirectional
 TCP stream payload, wrong-password rejection and UDP socket cleanup. Additional

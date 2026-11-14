@@ -20,6 +20,7 @@ public final class TransportCapabilities {
       case "http":
       case "anytls":
       case "vless":
+      case "vmess":
         return Status.TCP_READY;
       case "hysteria2":
       case "hy2":

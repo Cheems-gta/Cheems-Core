@@ -18,6 +18,8 @@ public class TransportCapabilitiesTest {
     assertTrue(TransportCapabilities.canDialTcp("anytls"));
     assertEquals(TransportCapabilities.Status.TCP_READY,TransportCapabilities.status("vless"));
     assertTrue(TransportCapabilities.canDialTcp("vless"));
+    assertEquals(TransportCapabilities.Status.TCP_READY,TransportCapabilities.status("vmess"));
+    assertTrue(TransportCapabilities.canDialTcp("vmess"));
   }
   @Test public void quicRequirementsAreExplicit() {
     assertTrue(TransportCapabilities.requiresQuic("hysteria2"));
@@ -26,7 +28,7 @@ public class TransportCapabilitiesTest {
     assertFalse(TransportCapabilities.requiresQuic("anytls"));
   }
   @Test public void socks5UdpIsNativeOnlyAndOtherUdpRemainsUnadvertised() {
-    for(String p:new String[]{"ss","trojan","hysteria2","hy2","anytls","vless","tuic"})
+    for(String p:new String[]{"ss","trojan","hysteria2","hy2","anytls","vless","vmess","tuic"})
       assertFalse(TransportCapabilities.canDialUdp(p));
     assertTrue(TransportCapabilities.canDialUdp("socks5"));
   }

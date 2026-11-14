@@ -61,6 +61,32 @@ public final class Subscription {
     if (separator <= 0)
       throw new IllegalArgumentException("节点分享链接缺少协议头（例如 hysteria2://）");
     String scheme = link.substring(0, separator).toLowerCase(Locale.ROOT);
+    if (scheme.equals("vmess")) {
+      Object decoded = new Yaml(new SafeConstructor(new LoaderOptions())).load(decode(link.substring(separator + 3)));
+      if (!(decoded instanceof Map)) throw new IllegalArgumentException("VMess 链接不是有效 JSON 对象");
+      Map<?, ?> json = (Map<?, ?>) decoded;
+      Map<String, Object> m = new LinkedHashMap<>();
+      m.put("type", "vmess");
+      String host = Node.value(json, "add", "");
+      m.put("server", host);
+      m.put("port", Node.value(json, "port", "0"));
+      m.put("name", Node.value(json, "ps", "VMess · " + host));
+      m.put("uuid", Node.value(json, "id", ""));
+      m.put("cipher", Node.value(json, "scy", "auto").toLowerCase(Locale.ROOT));
+      m.put("alterId", Node.value(json, "aid", "0"));
+      m.put("network", Node.value(json, "net", "tcp").toLowerCase(Locale.ROOT));
+      m.put("header-type", Node.value(json, "type", "none"));
+      String tls = Node.value(json, "tls", "");
+      m.put("tls", tls.equalsIgnoreCase("tls") || tls.equalsIgnoreCase("true"));
+      String sni = Node.value(json, "sni", "");
+      if (sni.isEmpty() && (tls.equalsIgnoreCase("tls") || tls.equalsIgnoreCase("true")))
+        sni = Node.value(json, "host", "");
+      m.put("sni", sni.isEmpty() ? host : sni);
+      m.put("client-fingerprint", Node.value(json, "fp", ""));
+      String path = Node.value(json, "path", "");
+      if (!path.isEmpty()) m.put("path", path);
+      return new Node(m);
+    }
     if (scheme.equals("vless")) {
       URI u = new URI(link);
       Map<String, Object> m = new LinkedHashMap<>();

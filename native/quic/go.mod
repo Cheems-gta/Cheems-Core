@@ -7,6 +7,7 @@ require (
 	github.com/quic-go/quic-go v0.48.2
 	github.com/sagernet/sing v0.9.5-0.20260917142815-f37989cadbf0
 	github.com/sagernet/sing-tun v0.9.7-0.20261114080632-40bd6cff5647
+	github.com/sagernet/sing-vmess v0.2.9-0.20261110093549-d800eb57f96c
 	golang.org/x/sys v0.49.0
 )
 
@@ -15,6 +16,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
+	github.com/gofrs/uuid/v5 v5.3.2 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect

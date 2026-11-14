@@ -40,6 +40,8 @@ public final class Hysteria2Native {
           long.class, String.class, boolean.class, String.class, String.class, network);
       binding().getMethod("startSOCKS5WithNetwork", String.class, long.class, String.class, String.class,
           long.class, String.class, network);
+      binding().getMethod("startVMessWithNetwork", String.class, long.class, String.class, String.class,
+          String.class, long.class, boolean.class, long.class, String.class, String.class, network);
       binding().getMethod("startTunnel", long.class);
       binding().getMethod("stopTunnel");
       return true;
@@ -52,9 +54,10 @@ public final class Hysteria2Native {
     boolean hy2 = "hysteria2".equals(node.type);
     boolean anytls = "anytls".equals(node.type);
     boolean vless = "vless".equals(node.type);
+    boolean vmess = "vmess".equals(node.type) && isPackaged();
     boolean socks5 = "socks5".equals(node.type) && isPackaged();
-    if (!hy2 && !anytls && !vless && !socks5) throw new IllegalArgumentException("Native node protocol required");
-    if ((vless && node.uuid.isEmpty()) || (!vless && !socks5 && node.password.isEmpty())) throw new IllegalArgumentException("Missing node credentials");
+    if (!hy2 && !anytls && !vless && !vmess && !socks5) throw new IllegalArgumentException("Native node protocol required");
+    if (((vless || vmess) && node.uuid.isEmpty()) || (!vless && !vmess && !socks5 && node.password.isEmpty())) throw new IllegalArgumentException("Missing node credentials");
     if (localPort < 1 || localPort > 65535) throw new IllegalArgumentException("Invalid local port");
     if (allowUnverifiedTLS && !node.hasInsecureTlsFlag())
       throw new IllegalArgumentException("Unverified TLS requires an explicit insecure provider flag");
@@ -84,6 +87,13 @@ public final class Hysteria2Native {
             String.class, String.class, long.class, String.class, networkType);
         start.invoke(null, node.host, (long) node.port, node.username, node.password,
             (long) localPort, token, network);
+      } else if (vmess) {
+        Method start = binding().getMethod("startVMessWithNetwork", String.class, long.class,
+            String.class, String.class, String.class, long.class, boolean.class, long.class,
+            String.class, String.class, networkType);
+        start.invoke(null, node.host, (long) node.port, node.sni, node.uuid, node.cipher,
+            Long.parseLong(Node.value(node.source, "alterId", "0")), node.tls(),
+            (long) localPort, token, platformAndCustomCAPEM, network);
       } else {
         String methodName = hy2 ? "startWithNetwork" : anytls ? "startAnyTLSWithNetwork" : "startVLESSWithNetwork";
         Method start = binding().getMethod(methodName, String.class, long.class, String.class,
