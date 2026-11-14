@@ -1,0 +1,58 @@
+// Package quictransport provides a real QUIC stream transport for future
+// Hysteria 2 integration. This is not a Hysteria 2 protocol implementation.
+package quictransport
+
+import (
+ "context"
+ "crypto/tls"
+ "errors"
+ "fmt"
+ "io"
+ "net"
+ "strconv"
+ "time"
+
+ quic "github.com/quic-go/quic-go"
+)
+
+type Config struct {
+ Address string
+ ServerName string
+ ALPN string
+ Timeout time.Duration
+}
+
+type Transport struct {
+ connection quic.Connection
+}
+
+func Dial(ctx context.Context, cfg Config) (*Transport, error) {
+ host, port, err := net.SplitHostPort(cfg.Address)
+ if err != nil || host == "" { return nil, errors.New("QUIC server address must be host:port") }
+ n, err := strconv.Atoi(port)
+ if err != nil || n < 1 || n > 65535 { return nil, errors.New("invalid QUIC port") }
+ if cfg.ServerName == "" { cfg.ServerName = host }
+ if cfg.ALPN == "" { return nil, errors.New("QUIC ALPN is required") }
+ if cfg.Timeout <= 0 { cfg.Timeout = 10*time.Second }
+ ctx, cancel := context.WithTimeout(ctx,cfg.Timeout)
+ defer cancel()
+ c, err := quic.DialAddr(ctx,cfg.Address,&tls.Config{
+  ServerName:cfg.ServerName, NextProtos:[]string{cfg.ALPN},
+  MinVersion:tls.VersionTLS13,
+ },&quic.Config{KeepAlivePeriod:15*time.Second,MaxIdleTimeout:60*time.Second})
+ if err != nil { return nil,fmt.Errorf("QUIC dial: %w",err) }
+ return &Transport{connection:c},nil
+}
+
+func (t *Transport) OpenStream(ctx context.Context) (io.ReadWriteCloser,error) {
+ if t == nil || t.connection == nil { return nil,errors.New("QUIC connection not established") }
+ return t.connection.OpenStreamSync(ctx)
+}
+
+func (t *Transport) Close() error {
+ if t == nil || t.connection == nil { return nil }
+ return t.connection.CloseWithError(0,"client closing")
+}
+
+func (t *Transport) LocalAddr() net.Addr { return t.connection.LocalAddr() }
+func (t *Transport) RemoteAddr() net.Addr { return t.connection.RemoteAddr() }
