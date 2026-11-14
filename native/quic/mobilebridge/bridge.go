@@ -39,7 +39,7 @@ type tcpBackend interface {
 }
 
 type udpBackend interface {
-	OpenUDPAssociation() (udpAssociation, error)
+	OpenUDPAssociation(string) (udpAssociation, error)
 }
 
 type udpAssociation interface {
@@ -52,14 +52,20 @@ type hysteriaUDPBackend struct {
 	session *quictransport.Hysteria2Session
 }
 
-func (b hysteriaUDPBackend) OpenUDPAssociation() (udpAssociation, error) {
+func (b hysteriaUDPBackend) OpenUDPAssociation(string) (udpAssociation, error) {
 	return b.session.OpenUDPAssociation()
 }
 
 type socks5UDPBackend struct{ client *quictransport.SOCKS5Client }
 
-func (b socks5UDPBackend) OpenUDPAssociation() (udpAssociation, error) {
+func (b socks5UDPBackend) OpenUDPAssociation(string) (udpAssociation, error) {
 	return b.client.OpenUDPAssociation()
+}
+
+type vmessUDPBackend struct{ client *quictransport.VMessClient }
+
+func (b vmessUDPBackend) OpenUDPAssociation(destination string) (udpAssociation, error) {
+	return b.client.OpenUDPAssociation(destination)
 }
 
 // Start authenticates and opens a local TCP-only SOCKS5 listener.
@@ -395,7 +401,7 @@ func StartVMessWithNetwork(host string, port int, sni string, userUUID string, s
 	vmessClient = client
 	socks5Client = nil
 	activeTCP = client
-	activeUDP = nil
+	activeUDP = vmessUDPBackend{client: client}
 	server = newServer
 	startNetwork = network
 	running.Store(true)

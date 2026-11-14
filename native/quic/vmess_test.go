@@ -14,6 +14,7 @@ import (
 	"time"
 
 	vmess "github.com/sagernet/sing-vmess"
+	"github.com/sagernet/sing/common/buf"
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
 )
@@ -53,10 +54,18 @@ func (vmessEchoHandler) NewConnectionEx(_ context.Context, conn net.Conn, _, _ M
 }
 
 func (vmessEchoHandler) NewPacketConnectionEx(_ context.Context, conn N.PacketConn, _, _ M.Socksaddr, onClose N.CloseHandlerFunc) {
-	_ = conn.Close()
+	defer conn.Close()
 	if onClose != nil {
-		onClose(nil)
+		defer onClose(nil)
 	}
+	request := buf.New()
+	request.Advance(vmess.MaxFrontHeadroom)
+	destination, err := conn.ReadPacket(request)
+	if err != nil {
+		request.Release()
+		return
+	}
+	_ = conn.WritePacket(request, destination)
 }
 
 func startVMessEcho(t *testing.T, listener net.Listener, alterID int) *vmess.Service[string] {
@@ -222,5 +231,43 @@ func TestVMessTLSRoundTripWithTrustedCertificate(t *testing.T) {
 	}
 	if string(got) != "vmess-tls-roundtrip" {
 		t.Fatalf("TLS round-trip payload = %q", got)
+	}
+}
+
+func TestVMessUDPRoundTripWithReferenceService(t *testing.T) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	startVMessEcho(t, listener, 0)
+	client, err := NewVMessClient(VMessConfig{
+		Address: listener.Addr().String(), UserID: testVMessUUID,
+		Security: "aes-128-gcm", Network: &vmessTestNetwork{}, Timeout: 3 * time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const destination = "203.0.113.8:53"
+	association, err := client.OpenUDPAssociation(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer association.Close()
+	want := []byte("vmess-udp-roundtrip")
+	if err = association.WriteTo(want, "203.0.113.9:53"); err == nil {
+		t.Fatal("VMess UDP association allowed its destination to change")
+	}
+	if err = association.WriteTo(want, destination); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	got, err := association.Read(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Address != destination || string(got.Payload) != string(want) {
+		t.Fatalf("UDP round trip = %s %q", got.Address, got.Payload)
 	}
 }

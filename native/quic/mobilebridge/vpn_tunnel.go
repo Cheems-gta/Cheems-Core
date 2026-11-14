@@ -148,7 +148,7 @@ func (h *vpnFlowHandler) NewPacketConnectionEx(ctx context.Context, conn N.Packe
 	if h.udp == nil {
 		return
 	}
-	assoc, err := h.udp.OpenUDPAssociation()
+	assoc, err := h.udp.OpenUDPAssociation(destination.String())
 	if err != nil {
 		return
 	}
@@ -184,7 +184,7 @@ func (h *vpnFlowHandler) NewPacketConnectionEx(ctx context.Context, conn N.Packe
 
 func (h *vpnFlowHandler) NewDNSPacket(payload []byte, source, destination M.Socksaddr, writer N.PacketWriter) {
 	if h.udp != nil {
-		assoc, err := h.udp.OpenUDPAssociation()
+		assoc, err := h.udp.OpenUDPAssociation("1.1.1.1:53")
 		if err == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			if err = assoc.WriteTo(payload, "1.1.1.1:53"); err == nil {

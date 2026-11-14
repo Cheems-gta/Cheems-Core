@@ -26,7 +26,7 @@ public final class ProtocolRegistry {
         new Capability("Trojan TCP/TLS", Status.IMPLEMENTED),
         new Capability("VMess", Status.PLANNED),
         new Capability("VLESS TCP+TLS (experimental)", Status.EXPERIMENTAL),
-        new Capability("VMess TCP/TLS (experimental)", Status.EXPERIMENTAL),
+        new Capability("VMess TCP/TLS + UDP (experimental)", Status.EXPERIMENTAL),
         new Capability("Hysteria2 (global VPN alpha)", Status.EXPERIMENTAL),
         new Capability("TUIC", Status.PLANNED),
         new Capability("AnyTLS (TCP alpha)", Status.EXPERIMENTAL),

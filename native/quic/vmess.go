@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -113,6 +114,20 @@ func (c *VMessClient) OpenTCP(ctx context.Context, destination string, port int)
 	}
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
+	conn, err := c.dialUpstream(ctx)
+	if err != nil {
+		return nil, err
+	}
+	stream, err := c.client.DialConn(conn, M.ParseSocksaddr(net.JoinHostPort(destination, strconv.Itoa(port))))
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("VMess request: %w", err)
+	}
+	_ = conn.SetDeadline(time.Time{})
+	return stream, nil
+}
+
+func (c *VMessClient) dialUpstream(ctx context.Context) (net.Conn, error) {
 	resolved := c.serverHost
 	ip := net.ParseIP(resolved)
 	if ip == nil {
@@ -154,13 +169,83 @@ func (c *VMessClient) OpenTCP(ctx context.Context, destination string, port int)
 		}
 		conn = tlsConn
 	}
-	stream, err := c.client.DialConn(conn, M.ParseSocksaddr(net.JoinHostPort(destination, fmt.Sprint(port))))
+	return conn, nil
+}
+
+// OpenUDPAssociation creates one VMess UDP command stream pinned to a single
+// destination, as required by the VMess packet transport.
+func (c *VMessClient) OpenUDPAssociation(destination string) (*VMessUDPAssociation, error) {
+	if c == nil || c.client == nil {
+		return nil, errors.New("VMess client is closed")
+	}
+	host, portText, err := net.SplitHostPort(destination)
+	if err != nil || host == "" {
+		return nil, errors.New("invalid VMess UDP destination")
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port < 1 || port > 65535 {
+		return nil, errors.New("invalid VMess UDP destination port")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	conn, err := c.dialUpstream(ctx)
+	if err != nil {
+		return nil, err
+	}
+	packet, err := c.client.DialPacketConn(conn, M.ParseSocksaddr(destination))
 	if err != nil {
 		_ = conn.Close()
-		return nil, fmt.Errorf("VMess request: %w", err)
+		return nil, fmt.Errorf("VMess UDP request: %w", err)
 	}
 	_ = conn.SetDeadline(time.Time{})
-	return stream, nil
+	return &VMessUDPAssociation{packet: packet, destination: destination}, nil
+}
+
+type VMessUDPAssociation struct {
+	packet      net.Conn
+	destination string
+}
+
+func (a *VMessUDPAssociation) WriteTo(payload []byte, address string) error {
+	if a == nil || a.packet == nil {
+		return errors.New("VMess UDP association is closed")
+	}
+	if address != a.destination {
+		return errors.New("VMess UDP association destination changed")
+	}
+	_, err := a.packet.Write(payload)
+	return err
+}
+
+func (a *VMessUDPAssociation) Read(ctx context.Context) (UDPMessage, error) {
+	if a == nil || a.packet == nil {
+		return UDPMessage{}, errors.New("VMess UDP association is closed")
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = a.packet.SetReadDeadline(deadline)
+	}
+	callbackDone := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() { _ = a.packet.SetReadDeadline(time.Now()); close(callbackDone) })
+	buffer := make([]byte, 65535)
+	n, err := a.packet.Read(buffer)
+	if !stop() {
+		<-callbackDone
+	}
+	_ = a.packet.SetReadDeadline(time.Time{})
+	if ctx.Err() != nil {
+		return UDPMessage{}, ctx.Err()
+	}
+	if err != nil {
+		return UDPMessage{}, err
+	}
+	return UDPMessage{Address: a.destination, Payload: append([]byte(nil), buffer[:n]...)}, nil
+}
+
+func (a *VMessUDPAssociation) Close() error {
+	if a == nil || a.packet == nil {
+		return nil
+	}
+	return a.packet.Close()
 }
 
 func (c *VMessClient) Close() error { return nil }

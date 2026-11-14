@@ -137,7 +137,7 @@ public final class MainActivity extends Activity {
       message("已复制本次会话的代理用户名和密码。请仅在你信任的应用中配置代理。");
     });
     actions.addView(
-        label("HY2、AnyTLS、VLESS、VMess TCP/TLS 与 SOCKS5 可建立实验性全局 VPN。VMess 仅支持 TCP；WebSocket、gRPC 与 UDP 尚未接入。", 13, muted));
+        label("HY2、AnyTLS、VLESS、VMess TCP/TLS 与 SOCKS5 可建立实验性全局 VPN。VMess UDP 需节点支持；WebSocket、gRPC 尚未接入。", 13, muted));
     LinearLayout events = card(root);
     events.addView(label("03  运行记录", 17, ink));
     logs = label("等待导入节点", 12, muted);

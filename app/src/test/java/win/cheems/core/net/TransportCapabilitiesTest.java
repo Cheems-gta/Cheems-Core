@@ -28,9 +28,10 @@ public class TransportCapabilitiesTest {
     assertFalse(TransportCapabilities.requiresQuic("anytls"));
   }
   @Test public void socks5UdpIsNativeOnlyAndOtherUdpRemainsUnadvertised() {
-    for(String p:new String[]{"ss","trojan","hysteria2","hy2","anytls","vless","vmess","tuic"})
+    for(String p:new String[]{"ss","trojan","hysteria2","hy2","anytls","vless","tuic"})
       assertFalse(TransportCapabilities.canDialUdp(p));
     assertTrue(TransportCapabilities.canDialUdp("socks5"));
+    assertTrue(TransportCapabilities.canDialUdp("vmess"));
   }
 }
 

@@ -16,7 +16,7 @@ This scope is not a claim of universal protocol compatibility.
 - Java TCP adapters exist for SS AEAD, Trojan, SOCKS5 and HTTP(S).
 - Hysteria 2 has a Go QUIC implementation and Android loopback bridge.
 - AnyTLS has an experimental native TCP adapter and DNS-over-TCP path. Independent local protocol tests pass; Flybit interoperability, Android CI binding validation and device VPN tests remain pending. AnyTLS UDP is unsupported.
-- VLESS TCP+TLS and VMess TCP/TLS are experimental. VLESS Reality, WebSocket, gRPC, XTLS Vision and UDP, plus VMess WebSocket, gRPC and UDP remain unsupported. VMess is covered by local reference-service TCP tests only. TUIC and SS2022 adapters are pending.
+- VLESS TCP+TLS and VMess TCP/TLS are experimental. VLESS Reality, WebSocket, gRPC, XTLS Vision and UDP, plus VMess WebSocket and gRPC remain unsupported. VMess TCP/TLS and UDP are still experimental and covered by local reference-service tests only. TUIC and SS2022 adapters are pending.
 - Android VPNService/TUN forwarding supports experimental HY2, AnyTLS TCP, VLESS TCP+TLS, and SOCKS5. SOCKS5 uses TCP CONNECT and UDP ASSOCIATE through the selected node; DNS has same-node TCP fallback. Other AnyTLS/VLESS UDP is unsupported; provider interoperability and real-device validation remain pending.
 - Existing provider observations: certificate authority rejection and QUIC timeout.
 

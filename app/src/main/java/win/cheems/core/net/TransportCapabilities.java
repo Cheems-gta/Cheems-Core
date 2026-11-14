@@ -35,8 +35,8 @@ public final class TransportCapabilities {
   }
 
   public static boolean canDialUdp(String protocol) {
-    // SOCKS5 UDP ASSOCIATE is available only in builds with the native TUN AAR.
-    return protocol != null && protocol.equalsIgnoreCase("socks5");
+    // Native AAR-backed VPN transports only; this does not imply server support.
+    return protocol != null && (protocol.equalsIgnoreCase("socks5") || protocol.equalsIgnoreCase("vmess"));
   }
 
   public static boolean requiresQuic(String protocol) {
