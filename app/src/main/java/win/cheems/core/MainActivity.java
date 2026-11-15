@@ -131,6 +131,14 @@ public final class MainActivity extends Activity {
     events.addView(label("03  运行记录", 17, ink));
     logs = label("等待导入节点", 12, muted);
     events.addView(logs);
+    android.content.SharedPreferences startup = getSharedPreferences("vpn_startup", MODE_PRIVATE);
+    if (startup.getBoolean("pending", false)) {
+      String interrupted = startup.getString("last_stage", "未知阶段");
+      CoreService.connecting = false;
+      CoreService.lastFailure = "上次 VPN 启动可能异常中断；查看运行记录";
+      CoreService.log("上次 VPN 进程可能在【" + interrupted + "】阶段异常退出；请复制运行记录。");
+      startup.edit().putBoolean("pending", false).apply();
+    }
     button(events, "复制诊断运行记录", () -> {
       String entries = CoreService.logs();
       if (entries.isBlank()) {
