@@ -89,6 +89,29 @@ public final class MainActivity extends Activity {
           public void onNothingSelected(android.widget.AdapterView<?> a) {}
         });
     button(imports, "验证完整代理转发（需先启动）", this::probe);
+    final String autoTlsKey = "auto_follow_subscription_tls";
+    Switch autoTls = new Switch(this);
+    autoTls.setText("自动遵循订阅的 TLS 策略（仅标记跳过验证的节点）");
+    autoTls.setTextColor(ink);
+    autoTls.setTextSize(13);
+    autoTls.setChecked(getPreferences(0).getBoolean(autoTlsKey, false));
+    imports.addView(autoTls);
+    imports.addView(label("开启后，订阅明确要求跳过证书验证的节点将不再逐次弹窗。可能遭遇服务器冒充；其他节点仍严格验证。", 12, muted));
+    autoTls.setOnCheckedChangeListener((buttonView, checked) -> {
+      if (!checked) {
+        getPreferences(0).edit().putBoolean(autoTlsKey, false).apply();
+        return;
+      }
+      autoTls.setChecked(false);
+      new AlertDialog.Builder(this)
+          .setTitle("确认自动遵循订阅 TLS 设置")
+          .setMessage("仅当订阅明确标记 skip-cert-verify 时，自动跳过服务器证书身份验证。连接仍使用 TLS 加密，但无法确认服务器身份，可能被冒充。不会对其他节点关闭验证。")
+          .setNegativeButton("取消", null)
+          .setPositiveButton("理解风险，启用", (dialog, which) -> {
+            getPreferences(0).edit().putBoolean(autoTlsKey, true).apply();
+            autoTls.setChecked(true);
+          }).show();
+    });
     LinearLayout actions = card(root);
     actions.addView(label("02  本地代理", 17, ink));
     button(
@@ -97,7 +120,10 @@ public final class MainActivity extends Activity {
         () -> {
           Node n = current();
           if (n == null) return;
-          if (n.hasInsecureTlsFlag()) {
+          if (n.hasInsecureTlsFlag() && getPreferences(0).getBoolean("auto_follow_subscription_tls", false)) {
+            CoreService.log("节点订阅要求跳过 TLS 证书验证；已按用户授权的订阅策略自动应用");
+            startProxy(n, true, "");
+          } else if (n.hasInsecureTlsFlag()) {
             TlsChoiceDialog.show(this,
                 () -> startProxy(n, false, ""),
                 () -> askTrustedCA(n),
