@@ -30,7 +30,22 @@ public final class CoreService extends VpnService {
   private static final ArrayDeque<String> events = new ArrayDeque<>();
   private final AtomicBoolean launching = new AtomicBoolean();
   private volatile boolean destroyed;
-  private ParcelFileDescriptor vpnInterface;
+  private volatile ParcelFileDescriptor vpnInterface;
+  private volatile String startupStage = "未开始";
+
+  // Persist only stage labels, never node names, addresses, passwords or keys.
+  private void markStage(String stage) {
+    if (destroyed) return;
+    startupStage = stage;
+    getSharedPreferences("vpn_startup", MODE_PRIVATE).edit()
+        .putString("last_stage", stage).putBoolean("pending", true).apply();
+    log("VPN 启动阶段：" + stage);
+  }
+
+  private void finishStage(String result) {
+    getSharedPreferences("vpn_startup", MODE_PRIVATE).edit()
+        .putString("last_stage", result).putBoolean("pending", false).apply();
+  }
   private android.net.Network physicalNetwork;
 
   static synchronized void log(String s) {
@@ -65,7 +80,7 @@ public final class CoreService extends VpnService {
             }
             if (!Hysteria2Native.isRunning()) {
               log("原生节点连接已中断，正在关闭失效代理");
-              stopSelfResult(startId);
+              stopSelf();
               return;
             }
           }
@@ -88,6 +103,12 @@ public final class CoreService extends VpnService {
     localHttpPassword = ownedHttpPassword;
     ownedCore = new ProxyCore(CoreService::log, ownedHttpPassword);
     core = ownedCore;
+    android.content.SharedPreferences previous = getSharedPreferences("vpn_startup", MODE_PRIVATE);
+    if (previous.getBoolean("pending", false)) {
+      log("检测到上次 VPN 启动异常中断；最后阶段：" +
+          previous.getString("last_stage", "未知") + "。请复制运行记录。");
+      previous.edit().putBoolean("pending", false).apply();
+    }
   }
 
   @Override
@@ -106,8 +127,21 @@ public final class CoreService extends VpnService {
             .setContentIntent(open)
             .setOngoing(true)
             .build();
-    startForeground(1, n);
-    if (!launching.compareAndSet(false, true)) return START_NOT_STICKY;
+    try {
+      startForeground(1, n);
+    } catch (RuntimeException e) {
+      connecting = false;
+      lastFailure = "Android 前台 VPN 服务启动失败";
+      log("VPN 通知启动异常：" + e.getClass().getSimpleName());
+      finishStage("前台服务启动失败");
+      stopSelf();
+      return START_NOT_STICKY;
+    }
+    if (!launching.compareAndSet(false, true)) {
+      log("重复的 VPN 启动请求已忽略");
+      return START_NOT_STICKY;
+    }
+    markStage("前台服务运行中");
     connecting = true;
     lastFailure = null;
 
@@ -126,6 +160,7 @@ public final class CoreService extends VpnService {
                 boolean nativeNode = "hysteria2".equals(node.type) || "anytls".equals(node.type) || "vless".equals(node.type) || "vmess".equals(node.type) || "ss2022".equals(node.type) || "tuic".equals(node.type)
                     || ("socks5".equals(node.type) && Hysteria2Native.isPackaged());
                 if (nativeNode) {
+                  markStage("原生节点握手");
                   if (!Hysteria2Native.isPackaged()) {
                     throw new IllegalStateException("当前 APK 未打包原生协议内核");
                   }
@@ -136,13 +171,14 @@ public final class CoreService extends VpnService {
                     log("本次节点连接使用自定义 CA，并继续校验服务器名称");
                   Hysteria2Native.start(node, Hysteria2Native.LOCAL_SOCKS_PORT,
                       allowUnverifiedTLS, customCAPEM, this);
-                  establishVPNTunnel();
+                  markStage("节点会话已建立");
                 }
                 if (destroyed) {
                   if (nativeNode) Hysteria2Native.stop();
                   return;
                 }
                 ownedCore.start(node);
+                markStage("本地 HTTP 代理已启动，正在验证 TCP 转发");
                 log("本地 HTTP 代理已启动；正在自动检查节点 TCP 转发");
                 try {
                   LocalProxyProbe.Result result = LocalProxyProbe.check(ownedHttpPassword);
@@ -150,14 +186,22 @@ public final class CoreService extends VpnService {
                   forwardingVerified = true;
                   lastFailure = null;
                   log("节点 TCP 转发验证通过 · " + result.elapsedMs + " ms · " + result.responseStatus);
-                  if (nativeNode) log("VPN 接口已建立；全局流量仍以应用访问和隧道计数为准");
                 } catch (IOException probeFailure) {
                   if (destroyed || core != ownedCore) return;
                   forwardingVerified = false;
-                  lastFailure = "测试目标转发未通过；查看运行记录";
+                  lastFailure = "测试目标转发未通过；没有启用全局 VPN";
                   log("自动转发检查失败：" + probeFailure.getMessage());
+                  if (nativeNode) throw new IOException("节点 TCP 转发预检失败，未建立 VPN");
+                }
+                if (nativeNode) {
+                  if (destroyed || core != ownedCore) return;
+                  markStage("准备建立 Android VPN 接口");
+                  establishVPNTunnel();
+                  markStage("Android VPN 已启动");
+                  log("VPN 接口已建立；全局流量仍以应用访问和隧道计数为准");
                 }
                 updateConnecting(false);
+                finishStage(nativeNode ? "VPN 接口与节点转发均已启动" : "本地代理运行中");
                 if (nativeNode && !destroyed) {
                   if (!Hysteria2Native.isRunning()) {
                     log("原生节点连接已丢失，代理将停止");
@@ -182,8 +226,11 @@ public final class CoreService extends VpnService {
                 else if (lower.contains("fingerprint mismatch"))
                   lastFailure = "服务器证书指纹不匹配，已拒绝连接";
                 else lastFailure = "节点连接失败；查看运行记录";
-                log("代理启动失败：" + detail);
-                stopSelfResult(id);
+                log("代理启动失败 [" + startupStage + "]：" + detail);
+                finishStage("失败阶段：" + startupStage);
+                // stopSelfResult(id) can refuse to stop after a duplicate start
+                // request, leaving an indefinite foreground VPN notification.
+                stopSelf();
               }
             },
             "cheems-connect")
@@ -240,9 +287,19 @@ public final class CoreService extends VpnService {
         .addDisallowedApplication(getPackageName());
     vpnInterface=builder.establish();
     if(vpnInterface==null) throw new IOException("Android denied VPN interface establishment");
-    setUnderlyingNetworks(new android.net.Network[]{physicalNetwork});
-    Hysteria2Native.startTunnel(vpnInterface.getFd());
-    if (!destroyed && core == ownedCore) tunnelEstablished = true;
+    try {
+      setUnderlyingNetworks(new android.net.Network[]{physicalNetwork});
+      Hysteria2Native.startTunnel(vpnInterface.getFd());
+      if (destroyed || core != ownedCore)
+        throw new IOException("VPN 启动期间服务已停止");
+      tunnelEstablished = true;
+    } catch (Exception | LinkageError failure) {
+      try { Hysteria2Native.stopTunnel(); } catch (Exception ignored) {}
+      try { vpnInterface.close(); } catch (IOException ignored) {}
+      vpnInterface = null;
+      if (failure instanceof Exception) throw (Exception) failure;
+      throw (LinkageError) failure;
+    }
     log("Android全局VPN和IPv4/IPv6隧道已启动");
   }
 
@@ -270,6 +327,7 @@ public final class CoreService extends VpnService {
     } catch (Exception e) {
       log("原生连接关闭异常");
     }
+    finishStage(lastFailure == null ? "用户或系统已停止 VPN" : "启动或连接失败，服务已关闭");
     stopForeground(STOP_FOREGROUND_REMOVE);
     super.onDestroy();
   }
