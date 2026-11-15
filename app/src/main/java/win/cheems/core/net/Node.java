@@ -34,7 +34,7 @@ public final class Node {
     else if (type.equals("vless") && !uuid.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) reason = "VLESS UUID 无效";
     else if (type.equals("vless") && !Boolean.parseBoolean(value(m, "tls", "false"))) reason = "当前仅支持 VLESS TCP+TLS";
     else if (type.equals("vless") && !value(m, "flow", "").isEmpty()) reason = "暂不支持 VLESS flow / XTLS Vision";
-    else if (type.equals("vless") && !value(m, "client-fingerprint", "").isEmpty()) reason = "VLESS 客户端 TLS 指纹尚未实现";
+    else if (type.equals("vless") && !isReality() && !value(m, "client-fingerprint", "").isEmpty()) reason = "VLESS 客户端 TLS 指纹尚未实现";
     else if (type.equals("vmess") && !uuid.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) reason = "VMess UUID 无效";
     else if (type.equals("vmess") && !Arrays.asList("auto", "none", "zero", "aes-128-cfb", "aes-128-gcm", "chacha20-poly1305").contains(cipher)) reason = "暂不支持 VMess 加密方式 " + cipher;
     else if (type.equals("vmess") && !validAlterId(value(m, "alterId", "0"))) reason = "VMess alterId 必须为 0 到 65535";
@@ -62,7 +62,8 @@ public final class Node {
     else if (!isWebSocket() && !isGRPC() && !Arrays.asList("tcp", "").contains(value(m, "network", "tcp")))
       reason = "暂不支持 " + value(m, "network", "") + " 传输";
     else if (!isGRPC() && m.containsKey("grpc-opts")) reason = "grpc-opts 与传输类型不匹配";
-    else if (m.containsKey("reality-opts") || (!isWebSocket() && m.containsKey("ws-opts")))
+    else if (isReality() && !validReality()) reason = "Reality 参数无效或传输组合尚未支持";
+    else if ((!type.equals("vless") && m.containsKey("reality-opts")) || (!isWebSocket() && m.containsKey("ws-opts")))
       reason = "暂不支持 Reality / WebSocket";
     else if (type.equals("ss")
         && !Arrays.asList("aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305").contains(cipher))
@@ -102,6 +103,20 @@ public final class Node {
     String setting = value(source, "tls", "false");
     return type.equals("trojan") || type.equals("anytls") || type.equals("vless")
         || Boolean.parseBoolean(setting) || (type.equals("vmess") && setting.equalsIgnoreCase("tls"));
+  }
+
+  public boolean isReality() { return type.equals("vless") && source.containsKey("reality-opts"); }
+  private Map<?,?> realityOptions() { Object o=source.get("reality-opts");return o instanceof Map ? (Map<?,?>)o : Collections.emptyMap(); }
+  public String realityPublicKey() { return value(realityOptions(),"public-key",value(source,"reality-public-key","")); }
+  public String realityShortID() { return value(realityOptions(),"short-id",value(source,"reality-short-id","")); }
+  public String realityFingerprint() { String fp=value(source,"client-fingerprint","chrome");return fp.isEmpty()?"chrome":fp; }
+  private boolean validReality() {
+    if(!(source.get("reality-opts") instanceof Map) || !value(source,"network","tcp").equals("tcp")) return false;
+    for(Object key:realityOptions().keySet()) if(!Arrays.asList("enabled","public-key","short-id").contains(String.valueOf(key))) return false;
+    if(!realityPublicKey().matches("[A-Za-z0-9_-]{43}") || !realityShortID().matches("(?:[a-fA-F0-9]{2}){0,8}")) return false;
+    try { if(Base64.getUrlDecoder().decode(realityPublicKey()).length!=32) return false; } catch(IllegalArgumentException e) { return false; }
+    return Arrays.asList("chrome","firefox").contains(realityFingerprint()) && !sni.isEmpty()
+        && !Boolean.parseBoolean(value(source,"skip-cert-verify","false")) && trustedCAPEM().isEmpty() && certificateSHA256().isEmpty();
   }
 
   public boolean isGRPC() {

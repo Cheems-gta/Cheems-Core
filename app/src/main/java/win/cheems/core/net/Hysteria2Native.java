@@ -50,6 +50,7 @@ public final class Hysteria2Native {
       binding().getMethod("startVLESSGRPCWithNetwork", String.class, long.class, String.class, String.class, long.class, String.class, boolean.class, String.class, String.class, String.class, String.class, network);
       binding().getMethod("startVMessWebSocketWithNetwork", String.class, long.class, String.class, String.class, String.class, long.class, boolean.class, long.class, String.class, String.class, String.class, String.class, network);
       binding().getMethod("startVMessGRPCWithNetwork", String.class, long.class, String.class, String.class, String.class, long.class, boolean.class, long.class, String.class, String.class, String.class, String.class, network);
+      binding().getMethod("startVLESSRealityWithNetwork", String.class, long.class, String.class, String.class, String.class, String.class, String.class, long.class, String.class, network);
       binding().getMethod("startTunnel", long.class);
       binding().getMethod("stopTunnel");
       return true;
@@ -97,6 +98,9 @@ public final class Hysteria2Native {
             String.class, String.class, long.class, String.class, networkType);
         start.invoke(null, node.host, (long) node.port, node.username, node.password,
             (long) localPort, token, network);
+      } else if (vless && node.isReality()) {
+        Method start=binding().getMethod("startVLESSRealityWithNetwork", String.class, long.class, String.class, String.class, String.class, String.class, String.class, long.class, String.class, networkType);
+        start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,node.realityPublicKey(),node.realityShortID(),node.realityFingerprint(),(long)localPort,token,network);
       } else if (vmess && node.isGRPC()) {
         Method start=binding().getMethod("startVMessGRPCWithNetwork", String.class, long.class, String.class, String.class, String.class, long.class, boolean.class, long.class, String.class, String.class, String.class, String.class, networkType);
         start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,node.cipher,Long.parseLong(Node.value(node.source,"alterId","0")),node.tls(),(long)localPort,token,platformAndCustomCAPEM,node.grpcServiceName(),node.grpcAuthority(),network);

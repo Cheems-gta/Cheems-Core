@@ -20,6 +20,7 @@ import (
 // VLESSConfig describes the explicitly supported VLESS TCP + TLS transport.
 // Reality, WebSocket, gRPC, XTLS Vision and UDP are intentionally out of scope.
 type VLESSConfig struct {
+	Reality            *RealityConfig
 	GRPC               *GRPCConfig
 	WebSocket          *WebSocketConfig
 	Address            string
@@ -33,6 +34,7 @@ type VLESSConfig struct {
 }
 
 type VLESSClient struct {
+	reality     *RealityConfig
 	grpc        *GRPCConfig
 	websocket   *WebSocketConfig
 	addressHost string
@@ -44,6 +46,14 @@ type VLESSClient struct {
 }
 
 func NewVLESSClient(cfg VLESSConfig) (*VLESSClient, error) {
+	if cfg.Reality != nil {
+		if cfg.GRPC != nil || cfg.WebSocket != nil || cfg.AllowUnverifiedTLS || cfg.TrustedCAPEM != "" || cfg.CertificateSHA256 != "" {
+			return nil, errors.New("Reality currently supports direct TCP only and its own server authentication")
+		}
+		if e := cfg.Reality.validate(); e != nil {
+			return nil, e
+		}
+	}
 	if cfg.GRPC != nil {
 		if cfg.WebSocket != nil {
 			return nil, errors.New("gRPC and WebSocket are mutually exclusive")
@@ -91,7 +101,7 @@ func NewVLESSClient(cfg VLESSConfig) (*VLESSClient, error) {
 	if cfg.GRPC != nil {
 		tlsConfig.NextProtos = []string{"h2"}
 	}
-	return &VLESSClient{grpc: cfg.GRPC, websocket: cfg.WebSocket, addressHost: host, addressPort: port, userID: userID, tlsConfig: tlsConfig, timeout: cfg.Timeout, network: cfg.Network}, nil
+	return &VLESSClient{reality: cfg.Reality, grpc: cfg.GRPC, websocket: cfg.WebSocket, addressHost: host, addressPort: port, userID: userID, tlsConfig: tlsConfig, timeout: cfg.Timeout, network: cfg.Network}, nil
 }
 
 func parseVLESSUUID(value string) ([16]byte, error) {
@@ -199,20 +209,26 @@ func (c *VLESSClient) OpenTCP(ctx context.Context, destination string, port int)
 		return nil, err
 	}
 	_ = conn.SetDeadline(time.Now().Add(c.timeout))
-	tlsConn := tls.Client(conn, c.tlsConfig.Clone())
-	if err = tlsConn.HandshakeContext(ctx); err != nil {
-		_ = conn.Close()
-		return nil, fmt.Errorf("VLESS TLS handshake: %w", err)
+	var stream net.Conn
+	if c.reality != nil {
+		stream, err = realityHandshake(ctx, conn, c.tlsConfig.ServerName, *c.reality)
+	} else {
+		tlsConn := tls.Client(conn, c.tlsConfig.Clone())
+		err = tlsConn.HandshakeContext(ctx)
+		stream = tlsConn
 	}
-	var stream net.Conn = tlsConn
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("VLESS secure handshake: %w", err)
+	}
 	if c.grpc != nil {
-		stream, err = wrapGRPC(tlsConn, *c.grpc)
+		stream, err = wrapGRPC(stream, *c.grpc)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if c.websocket != nil {
-		stream, err = wrapWebSocket(ctx, tlsConn, *c.websocket)
+		stream, err = wrapWebSocket(ctx, stream, *c.websocket)
 		if err != nil {
 			return nil, err
 		}

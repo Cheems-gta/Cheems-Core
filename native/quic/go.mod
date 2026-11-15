@@ -5,12 +5,15 @@ go 1.26.0
 require (
 	github.com/anytls/sing-anytls v0.0.13
 	github.com/gorilla/websocket v1.5.3
+	github.com/metacubex/utls v1.8.7
 	github.com/quic-go/quic-go v0.59.0
 	github.com/sagernet/sing v0.9.5-0.20260917142815-f37989cadbf0
 	github.com/sagernet/sing-quic v0.7.1
 	github.com/sagernet/sing-shadowsocks v0.2.9
 	github.com/sagernet/sing-tun v0.9.7-0.20261114080632-40bd6cff5647
 	github.com/sagernet/sing-vmess v0.2.9-0.20261110093549-d800eb57f96c
+	golang.org/x/crypto v0.58.0
+	golang.org/x/net v0.61.0
 	golang.org/x/sys v0.49.0
 )
 
@@ -26,7 +29,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.0.12 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
-	github.com/metacubex/utls v1.8.7 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/sagernet/fswatch v0.1.2 // indirect
 	github.com/sagernet/gvisor v0.0.0-20260727.0-sing-box-mod.1 // indirect
@@ -35,9 +37,7 @@ require (
 	github.com/sagernet/quic-go v0.61.0-sing-box-mod.6 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
-	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
-	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect

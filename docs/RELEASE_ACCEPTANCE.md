@@ -98,3 +98,8 @@ VMess and VLESS ordinary WebSocket transport options now cross the Android impor
 ## Standard gRPC Tun checkpoint
 
 VMess and VLESS standard bidirectional Hunk/Tun over verified TLS/HTTP2 are implemented with protected native upstream connections. Android imports service name and authority, and gomobile forwards both to the native transport. Independent wire-vector checks and local VMess/VLESS reference-service round trips pass along with Go race/vet checks. TunMulti, compression, arbitrary service names containing slashes, h2c and Reality remain unsupported. TLS gRPC requires an explicit nonempty supported service name. Android source-only CI validates the generated API signatures, JVM imports and compilation. The requested combined APK is still blocked on Reality integration and its checks; live-provider/device verification remains pending.
+
+
+## Reality preview checkpoint
+
+VLESS TCP Reality (empty flow) is integrated through Android import and native startup. Supported fingerprints are chrome/firefox. Independent synthetic reference tests verify decrypted ClientHello fields, authenticated TLS and VLESS echo traffic, and rejection of wrong public keys/short IDs and ordinary TLS certificates. Go race/vet pass. XTLS Vision, Reality over WS/gRPC, ML-DSA authentication and other fingerprints remain unsupported. The three preview families now have implementation paths: VMess/VLESS TLS WebSocket, standard TLS gRPC Tun, and VLESS TCP Reality. This is a scoped transport preview, not universal compatibility or proof of Flybit interoperability. Android source CI must pass before building the combined device-test APK; physical device acceptance follows.

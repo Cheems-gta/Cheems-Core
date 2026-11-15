@@ -141,6 +141,8 @@ public final class Subscription {
             m.put("tls", value.equalsIgnoreCase("tls") || value.equalsIgnoreCase("reality"));
             if (value.equalsIgnoreCase("reality")) m.put("reality-opts", Collections.singletonMap("enabled", true));
           }
+          if (key.equals("pbk")) m.put("reality-public-key",value);
+          if (key.equals("sid")) m.put("reality-short-id",value);
           if (key.equals("flow")) m.put("flow", value);
           if (key.equals("fp")) m.put("client-fingerprint", value);
           if (key.equals("allowInsecure") || key.equals("insecure"))
