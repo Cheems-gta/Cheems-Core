@@ -1,6 +1,7 @@
 # Cheems Core 0.4.4 AnyTLS compatibility build
 
 Changes in this APK:
+- Native libraries use 16 KiB ELF alignment; the build verifies both ELF load segments and uncompressed APK entry alignment. This is a binary compatibility check, not an emulator/device test.
 - AnyTLS imports and uses chrome, firefox, safari, ios, android, edge, 360, qq and random ClientHello presets. Empty/none uses standard TLS. Explicit ALPN and URI fp/client-fingerprint are forwarded.
 - Proxy-node certificate verification is disabled by default at the user's request, without confirmation dialogs. Imported CA/pin settings are omitted from each connection copy; saved subscription data is unchanged. Encryption remains enabled, but server identity is not verified.
 - The same selected policy reaches HY2, AnyTLS, VLESS TLS, VMess TCP/WS/gRPC, TUIC and the Java TLS node dialer. Reality retains its protocol authentication.

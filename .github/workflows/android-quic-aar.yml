@@ -113,7 +113,7 @@ jobs:
           go mod tidy
           go vet ./...
           gomobile init
-          gomobile bind -target=android/arm,android/arm64 -javapkg go -androidapi 28 -o cheems-quic.aar ./mobilebridge
+          gomobile bind -ldflags='-extldflags=-Wl,-z,max-page-size=16384,-z,common-page-size=16384' -target=android/arm,android/arm64 -javapkg go -androidapi 28 -o cheems-quic.aar ./mobilebridge
       - name: Package native AAR into Android APK
         run: |
           mkdir -p app/libs

@@ -119,7 +119,7 @@ jobs:
           go mod tidy
           go vet ./...
           gomobile init
-          gomobile bind -target=android/arm,android/arm64 -javapkg go -androidapi 28 -o cheems-quic.aar ./mobilebridge
+          gomobile bind -ldflags='-extldflags=-Wl,-z,max-page-size=16384,-z,common-page-size=16384' -target=android/arm,android/arm64 -javapkg go -androidapi 28 -o cheems-quic.aar ./mobilebridge
       - name: Include license notices in preview APK
         run: |
           mkdir -p app/src/main/assets/licenses
@@ -188,6 +188,7 @@ jobs:
           gradle :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --stacktrace
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | grep "versionName='0.4.4-anytls-compat'"
+          python3 scripts/check_apk_native_alignment.py app/build/outputs/apk/debug/app-debug.apk
           unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep -Fx "lib/arm64-v8a/libgojni.so"
           unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep -Fx "lib/armeabi-v7a/libgojni.so"
       - name: Prepare checksums and installable artifact
