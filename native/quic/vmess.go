@@ -21,6 +21,7 @@ import (
 // optional verified TLS. WebSocket, gRPC, HTTP obfuscation and client TLS
 // fingerprint impersonation are not included here.
 type VMessConfig struct {
+	WebSocket    *WebSocketConfig
 	Address      string
 	ServerName   string
 	UserID       string
@@ -33,6 +34,7 @@ type VMessConfig struct {
 }
 
 type VMessClient struct {
+	websocket  *WebSocketConfig
 	serverHost string
 	serverPort string
 	client     *vmess.Client
@@ -43,9 +45,21 @@ type VMessClient struct {
 }
 
 func NewVMessClient(cfg VMessConfig) (*VMessClient, error) {
+	if cfg.WebSocket != nil {
+		if e := cfg.WebSocket.validate(); e != nil {
+			return nil, e
+		}
+	}
 	host, port, err := net.SplitHostPort(cfg.Address)
 	if err != nil || host == "" {
 		return nil, errors.New("invalid VMess server address")
+	}
+	if cfg.WebSocket != nil {
+		ws := *cfg.WebSocket
+		if ws.Host == "" {
+			ws.Host = cfg.Address
+		}
+		cfg.WebSocket = &ws
 	}
 	if _, err = parseVLESSUUID(cfg.UserID); err != nil {
 		return nil, fmt.Errorf("invalid VMess user ID: %w", err)
@@ -96,6 +110,7 @@ func NewVMessClient(cfg VMessConfig) (*VMessClient, error) {
 		return nil, fmt.Errorf("VMess client setup: %w", err)
 	}
 	return &VMessClient{
+		websocket:  cfg.WebSocket,
 		serverHost: host,
 		serverPort: port,
 		client:     client,
@@ -169,6 +184,9 @@ func (c *VMessClient) dialUpstream(ctx context.Context) (net.Conn, error) {
 			return nil, fmt.Errorf("VMess TLS handshake: %w", err)
 		}
 		conn = tlsConn
+	}
+	if c.websocket != nil {
+		return wrapWebSocket(ctx, conn, *c.websocket)
 	}
 	return conn, nil
 }

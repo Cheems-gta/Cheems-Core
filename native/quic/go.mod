@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/anytls/sing-anytls v0.0.13
+	github.com/gorilla/websocket v1.5.3
 	github.com/quic-go/quic-go v0.59.0
 	github.com/sagernet/sing v0.9.5-0.20260917142815-f37989cadbf0
 	github.com/sagernet/sing-quic v0.7.1

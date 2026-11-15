@@ -94,3 +94,8 @@ An experimental native TUIC v5 adapter uses `sing-quic` v0.7.1 with protected ph
 ## TUIC Android integration checkpoint
 
 TUIC v5 share-link/YAML import, strict option validation, gomobile startup and native TCP/UDP TUN backend registration are implemented experimentally. Both native UDP datagrams and QUIC stream relay modes are selectable through the imported configuration. DNS uses the same selected backend with the existing same-node TCP fallback. Credentials remain local; TLS chain/hostname checks stay enabled. 0-RTT, disabled SNI, certificate pins and client TLS fingerprint emulation are unsupported. A local bridge lifecycle regression checks registration and cleanup; Go race/vet checks pass. Android binding/Java checks run in source-only CI. Provider interoperability, physical-device traffic, background stability and network switching remain unverified; no APK is delivered.
+
+
+## WebSocket native transport checkpoint
+
+Optional ordinary RFC6455 WebSocket transport is implemented for VMess and VLESS native clients using gorilla/websocket v1.5.3 (BSD-2-Clause). It upgrades an already protected TCP/TLS socket and preserves the configured HTTP host/path. Verified-TLS VMess and VLESS WebSocket round trips pass against local reference peers. WebSocket early data, arbitrary custom headers, gRPC and Reality remain unimplemented. Android import/start binding for WebSocket is still pending, so the app continues rejecting WebSocket nodes. This is source progress, not provider interoperability; no APK is delivered.

@@ -20,6 +20,7 @@ import (
 // VLESSConfig describes the explicitly supported VLESS TCP + TLS transport.
 // Reality, WebSocket, gRPC, XTLS Vision and UDP are intentionally out of scope.
 type VLESSConfig struct {
+	WebSocket          *WebSocketConfig
 	Address            string
 	ServerName         string
 	UUID               string
@@ -31,6 +32,7 @@ type VLESSConfig struct {
 }
 
 type VLESSClient struct {
+	websocket   *WebSocketConfig
 	addressHost string
 	addressPort string
 	userID      [16]byte
@@ -40,9 +42,21 @@ type VLESSClient struct {
 }
 
 func NewVLESSClient(cfg VLESSConfig) (*VLESSClient, error) {
+	if cfg.WebSocket != nil {
+		if e := cfg.WebSocket.validate(); e != nil {
+			return nil, e
+		}
+	}
 	host, port, err := net.SplitHostPort(cfg.Address)
 	if err != nil || host == "" {
 		return nil, errors.New("invalid VLESS server address")
+	}
+	if cfg.WebSocket != nil {
+		ws := *cfg.WebSocket
+		if ws.Host == "" {
+			ws.Host = cfg.Address
+		}
+		cfg.WebSocket = &ws
 	}
 	userID, err := parseVLESSUUID(cfg.UUID)
 	if err != nil {
@@ -64,7 +78,7 @@ func NewVLESSClient(cfg VLESSConfig) (*VLESSClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &VLESSClient{addressHost: host, addressPort: port, userID: userID, tlsConfig: tlsConfig, timeout: cfg.Timeout, network: cfg.Network}, nil
+	return &VLESSClient{websocket: cfg.WebSocket, addressHost: host, addressPort: port, userID: userID, tlsConfig: tlsConfig, timeout: cfg.Timeout, network: cfg.Network}, nil
 }
 
 func parseVLESSUUID(value string) ([16]byte, error) {
@@ -171,37 +185,46 @@ func (c *VLESSClient) OpenTCP(ctx context.Context, destination string, port int)
 	if err != nil {
 		return nil, err
 	}
+	_ = conn.SetDeadline(time.Now().Add(c.timeout))
 	tlsConn := tls.Client(conn, c.tlsConfig.Clone())
 	if err = tlsConn.HandshakeContext(ctx); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("VLESS TLS handshake: %w", err)
 	}
+	var stream net.Conn = tlsConn
+	if c.websocket != nil {
+		stream, err = wrapWebSocket(ctx, tlsConn, *c.websocket)
+		if err != nil {
+			return nil, err
+		}
+	}
 	request, err := vlessRequest(c.userID, port, addrType, addr)
 	if err != nil {
-		_ = tlsConn.Close()
+		_ = stream.Close()
 		return nil, err
 	}
-	if _, err = tlsConn.Write(request); err != nil {
-		_ = tlsConn.Close()
+	if _, err = stream.Write(request); err != nil {
+		_ = stream.Close()
 		return nil, fmt.Errorf("VLESS request: %w", err)
 	}
 	var response [2]byte
-	if _, err = io.ReadFull(tlsConn, response[:]); err != nil {
-		_ = tlsConn.Close()
+	if _, err = io.ReadFull(stream, response[:]); err != nil {
+		_ = stream.Close()
 		return nil, fmt.Errorf("VLESS response: %w", err)
 	}
 	if response[0] != 0 {
-		_ = tlsConn.Close()
+		_ = stream.Close()
 		return nil, fmt.Errorf("unsupported VLESS response version %d", response[0])
 	}
 	if response[1] > 0 {
 		addons := make([]byte, int(response[1]))
-		if _, err = io.ReadFull(tlsConn, addons); err != nil {
-			_ = tlsConn.Close()
+		if _, err = io.ReadFull(stream, addons); err != nil {
+			_ = stream.Close()
 			return nil, fmt.Errorf("VLESS response addons: %w", err)
 		}
 	}
-	return tlsConn, nil
+	_ = stream.SetDeadline(time.Time{})
+	return stream, nil
 }
 
 func vlessRequest(userID [16]byte, port int, addrType byte, addr []byte) ([]byte, error) {
