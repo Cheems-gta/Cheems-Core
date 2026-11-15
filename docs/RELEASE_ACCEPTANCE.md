@@ -93,3 +93,8 @@ Optional ordinary RFC6455 WebSocket transport is implemented for VMess and VLESS
 ## WebSocket Android integration checkpoint
 
 VMess and VLESS ordinary WebSocket transport options now cross the Android importer and gomobile startup boundary. HTTP Host and path are preserved from share links and YAML; non-Host custom headers and early-data configuration are rejected. Native verified-TLS WebSocket reference-service tests and Go race/vet checks pass. Android source-only CI checks the generated WebSocket startup API signatures and JVM import tests. gRPC and Reality remain pending; no APK should be delivered until all three requested transport integrations pass their source checks. Provider and physical-device validation are still required.
+
+
+## Standard gRPC Tun checkpoint
+
+VMess and VLESS standard bidirectional Hunk/Tun over verified TLS/HTTP2 are implemented with protected native upstream connections. Android imports service name and authority, and gomobile forwards both to the native transport. Independent wire-vector checks and local VMess/VLESS reference-service round trips pass along with Go race/vet checks. TunMulti, compression, arbitrary service names containing slashes, h2c and Reality remain unsupported. TLS gRPC requires an explicit nonempty supported service name. Android source-only CI validates the generated API signatures, JVM imports and compilation. The requested combined APK is still blocked on Reality integration and its checks; live-provider/device verification remains pending.

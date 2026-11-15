@@ -20,6 +20,7 @@ import (
 // VLESSConfig describes the explicitly supported VLESS TCP + TLS transport.
 // Reality, WebSocket, gRPC, XTLS Vision and UDP are intentionally out of scope.
 type VLESSConfig struct {
+	GRPC               *GRPCConfig
 	WebSocket          *WebSocketConfig
 	Address            string
 	ServerName         string
@@ -32,6 +33,7 @@ type VLESSConfig struct {
 }
 
 type VLESSClient struct {
+	grpc        *GRPCConfig
 	websocket   *WebSocketConfig
 	addressHost string
 	addressPort string
@@ -42,6 +44,14 @@ type VLESSClient struct {
 }
 
 func NewVLESSClient(cfg VLESSConfig) (*VLESSClient, error) {
+	if cfg.GRPC != nil {
+		if cfg.WebSocket != nil {
+			return nil, errors.New("gRPC and WebSocket are mutually exclusive")
+		}
+		if e := cfg.GRPC.validate(); e != nil {
+			return nil, e
+		}
+	}
 	if cfg.WebSocket != nil {
 		if e := cfg.WebSocket.validate(); e != nil {
 			return nil, e
@@ -78,7 +88,10 @@ func NewVLESSClient(cfg VLESSConfig) (*VLESSClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &VLESSClient{websocket: cfg.WebSocket, addressHost: host, addressPort: port, userID: userID, tlsConfig: tlsConfig, timeout: cfg.Timeout, network: cfg.Network}, nil
+	if cfg.GRPC != nil {
+		tlsConfig.NextProtos = []string{"h2"}
+	}
+	return &VLESSClient{grpc: cfg.GRPC, websocket: cfg.WebSocket, addressHost: host, addressPort: port, userID: userID, tlsConfig: tlsConfig, timeout: cfg.Timeout, network: cfg.Network}, nil
 }
 
 func parseVLESSUUID(value string) ([16]byte, error) {
@@ -192,6 +205,12 @@ func (c *VLESSClient) OpenTCP(ctx context.Context, destination string, port int)
 		return nil, fmt.Errorf("VLESS TLS handshake: %w", err)
 	}
 	var stream net.Conn = tlsConn
+	if c.grpc != nil {
+		stream, err = wrapGRPC(tlsConn, *c.grpc)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if c.websocket != nil {
 		stream, err = wrapWebSocket(ctx, tlsConn, *c.websocket)
 		if err != nil {

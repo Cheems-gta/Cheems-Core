@@ -66,7 +66,9 @@ jobs:
           grep -Eq 'startShadowsocks2022WithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startTUICWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, boolean, long, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startVLESSWebSocketWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVLESSGRPCWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startVMessWebSocketWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, long, boolean, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVMessGRPCWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, long, boolean, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startTunnel\(long\)' /tmp/cheems-native-api.txt
       - name: Compile and lint Android sources (no APK packaging)
         run: |

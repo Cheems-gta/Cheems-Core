@@ -301,14 +301,18 @@ func StartAnyTLSWithNetwork(host string, port int, sni string, password string, 
 
 // StartVLESSWithNetwork starts the explicitly supported VLESS TCP+TLS adapter.
 func StartVLESSWithNetwork(host string, port int, sni string, userUUID string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, network Network) error {
-	return startVLESS(host, port, sni, userUUID, localPort, localSecret, allowUnverifiedTLS, customCAPEM, certificateSHA256, network, nil)
+	return startVLESS(host, port, sni, userUUID, localPort, localSecret, allowUnverifiedTLS, customCAPEM, certificateSHA256, network, nil, nil)
 }
 
 func StartVLESSWebSocketWithNetwork(host string, port int, sni string, userUUID string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, path string, websocketHost string, network Network) error {
-	return startVLESS(host, port, sni, userUUID, localPort, localSecret, allowUnverifiedTLS, customCAPEM, certificateSHA256, network, &quictransport.WebSocketConfig{Path: path, Host: websocketHost})
+	return startVLESS(host, port, sni, userUUID, localPort, localSecret, allowUnverifiedTLS, customCAPEM, certificateSHA256, network, &quictransport.WebSocketConfig{Path: path, Host: websocketHost}, nil)
 }
 
-func startVLESS(host string, port int, sni string, userUUID string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, network Network, websocket *quictransport.WebSocketConfig) error {
+func StartVLESSGRPCWithNetwork(host string, port int, sni string, userUUID string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, serviceName string, authority string, network Network) error {
+	return startVLESS(host, port, sni, userUUID, localPort, localSecret, allowUnverifiedTLS, customCAPEM, certificateSHA256, network, nil, &quictransport.GRPCConfig{ServiceName: serviceName, Authority: authority})
+}
+
+func startVLESS(host string, port int, sni string, userUUID string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, network Network, websocket *quictransport.WebSocketConfig, grpc *quictransport.GRPCConfig) error {
 	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
 		return errors.New("invalid server or local port")
 	}
@@ -325,8 +329,8 @@ func startVLESS(host string, port int, sni string, userUUID string, localPort in
 	mu.Unlock()
 
 	client, err := quictransport.NewVLESSClient(quictransport.VLESSConfig{
-		WebSocket: websocket,
-		Address:   net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
+		WebSocket: websocket, GRPC: grpc,
+		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
 		UUID: userUUID, Network: network, TrustedCAPEM: customCAPEM,
 		CertificateSHA256: certificateSHA256, AllowUnverifiedTLS: allowUnverifiedTLS,
 	})
@@ -386,14 +390,18 @@ func startVLESS(host string, port int, sni string, userUUID string, localPort in
 // StartVMessWithNetwork starts the supported VMess TCP adapter with optional
 // verified TLS. The importer rejects non-TCP transports and unsupported TLS options.
 func StartVMessWithNetwork(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, network Network) error {
-	return startVMess(host, port, sni, userUUID, security, alterID, tlsEnabled, localPort, localSecret, customCAPEM, network, nil)
+	return startVMess(host, port, sni, userUUID, security, alterID, tlsEnabled, localPort, localSecret, customCAPEM, network, nil, nil)
 }
 
 func StartVMessWebSocketWithNetwork(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, path string, websocketHost string, network Network) error {
-	return startVMess(host, port, sni, userUUID, security, alterID, tlsEnabled, localPort, localSecret, customCAPEM, network, &quictransport.WebSocketConfig{Path: path, Host: websocketHost})
+	return startVMess(host, port, sni, userUUID, security, alterID, tlsEnabled, localPort, localSecret, customCAPEM, network, &quictransport.WebSocketConfig{Path: path, Host: websocketHost}, nil)
 }
 
-func startVMess(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, network Network, websocket *quictransport.WebSocketConfig) error {
+func StartVMessGRPCWithNetwork(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, serviceName string, authority string, network Network) error {
+	return startVMess(host, port, sni, userUUID, security, alterID, tlsEnabled, localPort, localSecret, customCAPEM, network, nil, &quictransport.GRPCConfig{ServiceName: serviceName, Authority: authority})
+}
+
+func startVMess(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, network Network, websocket *quictransport.WebSocketConfig, grpc *quictransport.GRPCConfig) error {
 	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
 		return errors.New("invalid server or local port")
 	}
@@ -410,8 +418,8 @@ func startVMess(host string, port int, sni string, userUUID string, security str
 	mu.Unlock()
 
 	client, err := quictransport.NewVMessClient(quictransport.VMessConfig{
-		WebSocket: websocket,
-		Address:   net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
+		WebSocket: websocket, GRPC: grpc,
+		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
 		UserID: userUUID, Security: security, AlterID: alterID, TLS: tlsEnabled,
 		Network: network, TrustedCAPEM: customCAPEM,
 	})

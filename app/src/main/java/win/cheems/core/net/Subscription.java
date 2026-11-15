@@ -99,6 +99,13 @@ public final class Subscription {
       m.put("alterId", Node.value(json, "aid", "0"));
       m.put("network", Node.value(json, "net", "tcp").toLowerCase(Locale.ROOT));
       m.put("header-type", Node.value(json, "type", "none"));
+      if (Node.value(json,"net","tcp").equalsIgnoreCase("grpc")) {
+        String mode=Node.value(json,"type","gun");
+        m.put("grpc-mode",mode.equals("none") ? "gun" : mode);
+        m.put("header-type","none");
+        String authority=Node.value(json,"host","");
+        if(!authority.isEmpty()) m.put("authority",authority);
+      }
       String tls = Node.value(json, "tls", "");
       m.put("tls", tls.equalsIgnoreCase("tls") || tls.equalsIgnoreCase("true"));
       String sni = Node.value(json, "sni", "");
@@ -125,6 +132,9 @@ public final class Subscription {
           String key = urlDecode(kv[0]), value = kv.length == 2 ? urlDecode(kv[1]) : "";
           if (key.equals("sni") || key.equals("peer")) m.put("sni", value);
           if (key.equals("type")) m.put("network", value);
+          if (key.equals("serviceName")) m.put("serviceName",value);
+          if (key.equals("authority")) m.put("authority",value);
+          if (key.equals("mode")) m.put("grpc-mode",value);
           if (key.equals("path")) m.put("path",value);
           if (key.equals("host")) m.put("ws-host",value);
           if (key.equals("security")) {

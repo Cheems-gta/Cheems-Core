@@ -21,6 +21,7 @@ import (
 // optional verified TLS. WebSocket, gRPC, HTTP obfuscation and client TLS
 // fingerprint impersonation are not included here.
 type VMessConfig struct {
+	GRPC         *GRPCConfig
 	WebSocket    *WebSocketConfig
 	Address      string
 	ServerName   string
@@ -34,6 +35,7 @@ type VMessConfig struct {
 }
 
 type VMessClient struct {
+	grpc       *GRPCConfig
 	websocket  *WebSocketConfig
 	serverHost string
 	serverPort string
@@ -45,6 +47,14 @@ type VMessClient struct {
 }
 
 func NewVMessClient(cfg VMessConfig) (*VMessClient, error) {
+	if cfg.GRPC != nil {
+		if cfg.WebSocket != nil {
+			return nil, errors.New("gRPC and WebSocket are mutually exclusive")
+		}
+		if e := cfg.GRPC.validate(); e != nil {
+			return nil, e
+		}
+	}
 	if cfg.WebSocket != nil {
 		if e := cfg.WebSocket.validate(); e != nil {
 			return nil, e
@@ -105,11 +115,18 @@ func NewVMessClient(cfg VMessConfig) (*VMessClient, error) {
 			tlsConfig.RootCAs = roots
 		}
 	}
+	if cfg.GRPC != nil {
+		if !cfg.TLS {
+			return nil, errors.New("gRPC currently requires TLS")
+		}
+		tlsConfig.NextProtos = []string{"h2"}
+	}
 	client, err := vmess.NewClient(cfg.UserID, security, cfg.AlterID)
 	if err != nil {
 		return nil, fmt.Errorf("VMess client setup: %w", err)
 	}
 	return &VMessClient{
+		grpc:       cfg.GRPC,
 		websocket:  cfg.WebSocket,
 		serverHost: host,
 		serverPort: port,
@@ -184,6 +201,9 @@ func (c *VMessClient) dialUpstream(ctx context.Context) (net.Conn, error) {
 			return nil, fmt.Errorf("VMess TLS handshake: %w", err)
 		}
 		conn = tlsConn
+	}
+	if c.grpc != nil {
+		return wrapGRPC(conn, *c.grpc)
 	}
 	if c.websocket != nil {
 		return wrapWebSocket(ctx, conn, *c.websocket)

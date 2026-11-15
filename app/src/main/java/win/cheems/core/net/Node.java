@@ -40,7 +40,7 @@ public final class Node {
     else if (type.equals("vmess") && !validAlterId(value(m, "alterId", "0"))) reason = "VMess alterId 必须为 0 到 65535";
     else if (type.equals("vmess") && !value(m, "header-type", "none").equalsIgnoreCase("none")) reason = "暂不支持 VMess TCP header type " + value(m, "header-type", "");
     else if (type.equals("vmess") && !value(m, "client-fingerprint", "").isEmpty()) reason = "VMess 客户端 TLS 指纹尚未实现";
-    else if (type.equals("vmess") && !isWebSocket() && !value(m, "path", "").isEmpty()) reason = "当前 VMess TCP 模式不接受 path 参数";
+    else if (type.equals("vmess") && !isWebSocket() && !isGRPC() && !value(m, "path", "").isEmpty()) reason = "当前 VMess TCP 模式不接受 path 参数";
     else if (type.equals("tuic") && (!uuid.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}") || password.isEmpty())) reason = "TUIC v5 UUID 或密码无效";
     else if (type.equals("tuic") && !validTuicALPN(tuicALPN())) reason = "TUIC ALPN 参数无效";
     else if (type.equals("tuic") && !Arrays.asList("cubic","new_reno","bbr").contains(value(m,"congestion-controller","cubic"))) reason = "TUIC 拥塞控制参数不支持";
@@ -57,9 +57,11 @@ public final class Node {
     else if (!Arrays.asList("ss", "ss2022", "trojan", "socks5", "http", "hysteria2", "anytls", "vless", "vmess", "tuic").contains(type))
       reason = "暂未实现 " + type + " 协议";
     else if (m.containsKey("plugin") && !value(m, "plugin", "").isEmpty()) reason = "暂不支持插件传输";
+    else if (isGRPC() && !validGRPC()) reason = "gRPC 仅支持 TLS 标准 Tun 模式；服务名称或参数无效";
     else if (isWebSocket() && !validWebSocket()) reason = "WebSocket 参数无效或包含未支持的头部/早期数据";
-    else if (!isWebSocket() && !Arrays.asList("tcp", "").contains(value(m, "network", "tcp")))
+    else if (!isWebSocket() && !isGRPC() && !Arrays.asList("tcp", "").contains(value(m, "network", "tcp")))
       reason = "暂不支持 " + value(m, "network", "") + " 传输";
+    else if (!isGRPC() && m.containsKey("grpc-opts")) reason = "grpc-opts 与传输类型不匹配";
     else if (m.containsKey("reality-opts") || (!isWebSocket() && m.containsKey("ws-opts")))
       reason = "暂不支持 Reality / WebSocket";
     else if (type.equals("ss")
@@ -100,6 +102,22 @@ public final class Node {
     String setting = value(source, "tls", "false");
     return type.equals("trojan") || type.equals("anytls") || type.equals("vless")
         || Boolean.parseBoolean(setting) || (type.equals("vmess") && setting.equalsIgnoreCase("tls"));
+  }
+
+  public boolean isGRPC() {
+    return (type.equals("vmess") || type.equals("vless")) && value(source,"network","tcp").equals("grpc");
+  }
+  private Map<?,?> grpcOptions() {
+    Object options=source.get("grpc-opts");return options instanceof Map ? (Map<?,?>)options : Collections.emptyMap();
+  }
+  public String grpcServiceName() { return value(grpcOptions(),"grpc-service-name",value(source,"serviceName",value(source,"path",""))); }
+  public String grpcAuthority() { return value(grpcOptions(),"authority",value(source,"authority",sni)); }
+  private boolean validGRPC() {
+    if(!tls() || !grpcServiceName().matches("[A-Za-z0-9_.-]+") || grpcAuthority().isEmpty()) return false;
+    if(!value(source,"grpc-mode","gun").equals("gun")) return false;
+    if(source.containsKey("grpc-opts") && !(source.get("grpc-opts") instanceof Map)) return false;
+    for(Object key:grpcOptions().keySet()) if(!Arrays.asList("grpc-service-name","authority").contains(String.valueOf(key))) return false;
+    return !grpcAuthority().contains("/") && !grpcAuthority().contains("\r") && !grpcAuthority().contains("\n");
   }
 
   public boolean isWebSocket() {
