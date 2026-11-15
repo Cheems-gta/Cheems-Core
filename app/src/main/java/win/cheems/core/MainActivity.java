@@ -234,6 +234,10 @@ public final class MainActivity extends Activity {
   }
 
   private void launchVpnService(Node node, boolean allowUnverifiedTLS, String trustedCAPEM) {
+    if (CoreService.connecting || (CoreService.core != null && CoreService.core.running())) {
+      message("当前服务正在连接或运行，请先停止再重试。");
+      return;
+    }
     if (Build.VERSION.SDK_INT >= 33
         && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
