@@ -39,13 +39,13 @@ public final class CoreService extends VpnService {
     if (destroyed) return;
     startupStage = stage;
     getSharedPreferences("vpn_startup", MODE_PRIVATE).edit()
-        .putString("last_stage", stage).putBoolean("pending", true).apply();
+        .putString("last_stage", stage).putBoolean("pending", true).commit();
     log("VPN 启动阶段：" + stage);
   }
 
   private void finishStage(String result) {
     getSharedPreferences("vpn_startup", MODE_PRIVATE).edit()
-        .putString("last_stage", result).putBoolean("pending", false).apply();
+        .putString("last_stage", result).putBoolean("pending", false).commit();
   }
   private android.net.Network physicalNetwork;
 
