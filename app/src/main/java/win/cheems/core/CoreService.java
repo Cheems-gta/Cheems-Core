@@ -17,6 +17,7 @@ import win.cheems.core.net.Node;
 import win.cheems.core.net.LocalProxyProbe;
 
 public final class CoreService extends VpnService {
+  private static final String ACTION_STOP_VPN = "win.cheems.core.STOP_VPN";
   static volatile Node selected;
   static volatile ProxyCore core;
   static volatile boolean connecting;
@@ -113,18 +114,27 @@ public final class CoreService extends VpnService {
 
   @Override
   public int onStartCommand(Intent intent, int flags, int id) {
+    if (intent != null && ACTION_STOP_VPN.equals(intent.getAction())) {
+      log("用户通过通知栏请求停止 VPN");
+      stopSelf();
+      return START_NOT_STICKY;
+    }
     NotificationManager nm = getSystemService(NotificationManager.class);
     nm.createNotificationChannel(
         new NotificationChannel("core", "Cheems Core VPN", NotificationManager.IMPORTANCE_LOW));
     PendingIntent open =
         PendingIntent.getActivity(
             this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
+    Intent stopIntent = new Intent(this, CoreService.class).setAction(ACTION_STOP_VPN);
+    PendingIntent stop = PendingIntent.getService(
+        this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     Notification n =
         new Notification.Builder(this, "core")
             .setSmallIcon(android.R.drawable.stat_sys_upload_done)
             .setContentTitle("Cheems Core · VPN")
             .setContentText("VPN服务启动中，节点转发待验证")
             .setContentIntent(open)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "停止 VPN", stop)
             .setOngoing(true)
             .build();
     try {
