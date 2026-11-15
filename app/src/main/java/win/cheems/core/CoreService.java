@@ -41,12 +41,35 @@ public final class CoreService extends VpnService {
     getSharedPreferences("vpn_startup", MODE_PRIVATE).edit()
         .putString("last_stage", stage).putBoolean("pending", true).commit();
     log("VPN 启动阶段：" + stage);
+    if (launching.get()) {
+      try {
+        getSystemService(NotificationManager.class).notify(1, vpnNotification(stage));
+      } catch (RuntimeException ignored) {
+        // Diagnostic UI must not interfere with a running tunnel.
+      }
+    }
   }
 
   private void finishStage(String result) {
     getSharedPreferences("vpn_startup", MODE_PRIVATE).edit()
         .putString("last_stage", result).putBoolean("pending", false).commit();
   }
+  private Notification vpnNotification(String message) {
+    PendingIntent open = PendingIntent.getActivity(
+        this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
+    Intent stopIntent = new Intent(this, CoreService.class).setAction(ACTION_STOP_VPN);
+    PendingIntent stop = PendingIntent.getService(this, 1, stopIntent,
+        PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    return new Notification.Builder(this, "core")
+        .setSmallIcon(android.R.drawable.stat_sys_upload_done)
+        .setContentTitle("Cheems Core · VPN")
+        .setContentText(message)
+        .setContentIntent(open)
+        .addAction(android.R.drawable.ic_menu_close_clear_cancel, "停止 VPN", stop)
+        .setOngoing(true)
+        .build();
+  }
+
   private android.net.Network physicalNetwork;
 
   static synchronized void log(String s) {
@@ -116,27 +139,14 @@ public final class CoreService extends VpnService {
   public int onStartCommand(Intent intent, int flags, int id) {
     if (intent != null && ACTION_STOP_VPN.equals(intent.getAction())) {
       log("用户通过通知栏请求停止 VPN");
+      try { stopForeground(STOP_FOREGROUND_REMOVE); } catch (RuntimeException ignored) {}
       stopSelf();
       return START_NOT_STICKY;
     }
     NotificationManager nm = getSystemService(NotificationManager.class);
     nm.createNotificationChannel(
         new NotificationChannel("core", "Cheems Core VPN", NotificationManager.IMPORTANCE_LOW));
-    PendingIntent open =
-        PendingIntent.getActivity(
-            this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
-    Intent stopIntent = new Intent(this, CoreService.class).setAction(ACTION_STOP_VPN);
-    PendingIntent stop = PendingIntent.getService(
-        this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-    Notification n =
-        new Notification.Builder(this, "core")
-            .setSmallIcon(android.R.drawable.stat_sys_upload_done)
-            .setContentTitle("Cheems Core · VPN")
-            .setContentText("VPN服务启动中，节点转发待验证")
-            .setContentIntent(open)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "停止 VPN", stop)
-            .setOngoing(true)
-            .build();
+    Notification n = vpnNotification("VPN服务启动中，节点转发待验证");
     try {
       startForeground(1, n);
     } catch (RuntimeException e) {
@@ -238,6 +248,8 @@ public final class CoreService extends VpnService {
                 else lastFailure = "节点连接失败；查看运行记录";
                 log("代理启动失败 [" + startupStage + "]：" + detail);
                 finishStage("失败阶段：" + startupStage);
+                try { stopForeground(STOP_FOREGROUND_REMOVE); }
+                catch (RuntimeException ignored) {}
                 // stopSelfResult(id) can refuse to stop after a duplicate start
                 // request, leaving an indefinite foreground VPN notification.
                 stopSelf();
@@ -284,6 +296,7 @@ public final class CoreService extends VpnService {
   }
 
   private void establishVPNTunnel() throws Exception {
+    markStage("选择 VPN 底层网络");
     physicalNetwork=choosePhysicalNetwork();
     if(physicalNetwork==null) throw new IOException("No physical internet network available");
     Builder builder=new Builder().setSession("Cheems Core")
@@ -295,11 +308,14 @@ public final class CoreService extends VpnService {
         .addDnsServer("10.77.0.2")
         .addDnsServer("fd77:77::2")
         .addDisallowedApplication(getPackageName());
+    markStage("申请 Android TUN 接口");
     vpnInterface=builder.establish();
     if(vpnInterface==null) throw new IOException("Android denied VPN interface establishment");
     try {
+      markStage("TUN 已建立，正在启动原生数据栈");
       setUnderlyingNetworks(new android.net.Network[]{physicalNetwork});
       Hysteria2Native.startTunnel(vpnInterface.getFd());
+      markStage("原生 TUN 数据栈已启动");
       if (destroyed || core != ownedCore)
         throw new IOException("VPN 启动期间服务已停止");
       tunnelEstablished = true;
