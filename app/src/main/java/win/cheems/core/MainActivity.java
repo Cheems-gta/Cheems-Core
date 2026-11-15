@@ -148,6 +148,19 @@ public final class MainActivity extends Activity {
       CoreService.log("上次 VPN 进程可能在【" + interrupted + "】阶段异常退出；请复制运行记录。");
       startup.edit().putBoolean("pending", false).apply();
     }
+    if (startup.getBoolean("crash_pending", false)) {
+      // Only exception category and code location are stored. Never credentials.
+      String kind = startup.getString("crash_type", "UnknownError");
+      String site = startup.getString("crash_site", "unknown");
+      String thread = startup.getString("crash_thread", "unknown");
+      String phase = startup.getString("last_stage", "未知阶段");
+      CoreService.lastFailure = "检测到上次异常退出，请查看运行记录";
+      CoreService.log("检测到上次应用异常退出：类型=" + kind
+          + "；线程=" + thread + "；位置=" + site
+          + "；VPN 阶段=" + phase);
+      startup.edit().remove("crash_pending").remove("crash_type")
+          .remove("crash_site").remove("crash_thread").apply();
+    }
     button(events, "复制诊断运行记录", () -> {
       String entries = CoreService.logs();
       if (entries.isBlank()) {
