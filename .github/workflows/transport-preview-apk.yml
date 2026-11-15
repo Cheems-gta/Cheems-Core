@@ -1,0 +1,202 @@
+name: Build Cheems Core transport preview APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [transport-preview]
+    paths:
+      - 'native/quic/**'
+      - 'app/**'
+      - '.github/workflows/transport-preview-apk.yml'
+jobs:
+  android-aar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: native/quic/go.mod
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: cheems-core-debug-signing-v2
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      # This module's go.sum is generated in CI. Resolve it BEFORE invoking
+      # the isolated test step; otherwise Go refuses to load quic-go imports.
+      - name: Resolve Go module checksums before tests
+        working-directory: native/quic
+        run: |
+          go mod tidy
+          go mod verify
+      - name: Run Go tests with persistent failure report
+        id: go_tests
+        working-directory: native/quic
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./... -count=1 -v -timeout=90s 2>&1 | tee ../../go-test-report.txt
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "::group::FAILED GO TESTS - compact diagnostic"
+            grep -n -E -- '--- FAIL:|^FAIL|Error:|panic:|fatal error:|\.go:[0-9]+:' ../../go-test-report.txt || true
+            echo "::endgroup::"
+            exit "$status"
+          fi
+      - name: Publish sanitized Go test result to commit status
+        if: ${{ always() && steps.go_tests.outcome != 'skipped' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TEST_OUTCOME: ${{ steps.go_tests.outcome }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, re, subprocess
+          from pathlib import Path
+          result = os.environ["TEST_OUTCOME"]
+          report = Path("go-test-report.txt")
+          body = report.read_text(errors="replace") if report.exists() else ""
+          failures = re.findall(r"(?m)^\s*--- FAIL:\s*([A-Za-z_][A-Za-z_0-9]*)", body)
+          if result == "success":
+              description = "Go tests passed"
+              state = "success"
+          elif failures:
+              description = "Go failed: " + ", ".join(dict.fromkeys(failures))
+              state = "failure"
+          else:
+              description = "Go test step failed: inspect attached CI report"
+              state = "failure"
+          description = description[:130]
+          print("Sanitized Go test result:", description)
+          subprocess.run([
+              "gh", "api", "--method", "POST",
+              "/repos/{}/statuses/{}".format(os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_SHA"]),
+              "-f", "state="+state,
+              "-f", "context=Cheems-Core/Go-tests",
+              "-f", "description="+description,
+              "-f", "target_url=https://github.com/{}/actions/runs/{}".format(
+                  os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_RUN_ID"])
+          ], check=True)
+          PY
+      - name: Upload Go test failure report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cheems-go-test-failure-report
+          path: go-test-report.txt
+          if-no-files-found: ignore
+      - name: Build Hysteria 2 Android library
+        working-directory: native/quic
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+        run: |
+          go get -tool golang.org/x/mobile/cmd/gobind@latest
+          go mod tidy
+          go vet ./...
+          gomobile init
+          gomobile bind -target=android/arm,android/arm64 -javapkg go -androidapi 28 -o cheems-quic.aar ./mobilebridge
+      - name: Include license notices in preview APK
+        run: |
+          mkdir -p app/src/main/assets/licenses
+          cp COPYING app/src/main/assets/licenses/GPL-3.0.txt
+          cp THIRD_PARTY_NOTICES.md app/src/main/assets/licenses/
+          python3 - <<'PYCODE'
+          import json, pathlib, shutil, subprocess
+          raw=subprocess.check_output(["go","list","-m","-json","all"],cwd="native/quic",text=True)
+          decoder=json.JSONDecoder(); modules=[]
+          while raw.strip():
+              value,end=decoder.raw_decode(raw.lstrip()); modules.append(value); raw=raw.lstrip()[end:]
+          root=pathlib.Path("app/src/main/assets/licenses/native")
+          for module in modules:
+              directory=module.get("Dir")
+              if not directory: continue
+              for f in pathlib.Path(directory).iterdir():
+                  if f.is_file() and f.name.lower().startswith(("license","copying","notice")):
+                      dest=root/module["Path"];dest.mkdir(parents=True,exist_ok=True);shutil.copy2(f,dest/f.name)
+          pathlib.Path("app/src/main/assets/licenses/native-modules.json").write_text(json.dumps([{k:m.get(k) for k in ("Path","Version","Sum")} for m in modules],indent=2))
+          PYCODE
+      - name: Package native AAR into Android APK
+        run: |
+          mkdir -p app/libs
+          cp native/quic/cheems-quic.aar app/libs/
+          unzip -p app/libs/cheems-quic.aar classes.jar > /tmp/cheems-bindings.jar
+          echo "Generated gomobile Java classes:"
+          jar tf /tmp/cheems-bindings.jar | grep -E "\\.class$" | head -80
+          jar tf /tmp/cheems-bindings.jar | grep -Fx "go/mobilebridge/Mobilebridge.class"
+          javap -classpath /tmp/cheems-bindings.jar go.mobilebridge.Mobilebridge > /tmp/cheems-native-api.txt
+          grep -Fx "go/mobilebridge/Network.class" <(jar tf /tmp/cheems-bindings.jar)
+          grep -Eq 'startWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startAnyTLSWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVLESSWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startSOCKS5WithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVMessWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, long, boolean, long, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startShadowsocks2022WithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startTUICWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, boolean, long, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVLESSWebSocketWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVLESSGRPCWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVMessWebSocketWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, long, boolean, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVMessGRPCWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, long, boolean, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVLESSRealityWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, long, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startTunnel\(long\)' /tmp/cheems-native-api.txt
+          grep -Eq 'stopTunnel\(\)' /tmp/cheems-native-api.txt
+          grep -Eq 'isRunning\(\)' /tmp/cheems-native-api.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("app/build.gradle")
+          s=p.read_text()
+          s=s.replace('dependencies {', 'dependencies {\n implementation files("libs/cheems-quic.aar")', 1)
+          s=s.replace("versionCode 2; versionName '0.2.0'", "versionCode 100; versionName '0.4.0-transport-preview'")
+          p.write_text(s)
+          PY
+          gradle :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --stacktrace
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | grep "versionName='0.4.0-transport-preview'"
+          unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep -Fx "lib/arm64-v8a/libgojni.so"
+          unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep -Fx "lib/armeabi-v7a/libgojni.so"
+      - name: Prepare checksums and installable artifact
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Cheems-Core-v0.4.0-transport-preview.apk
+          cd dist
+          sha256sum Cheems-Core-v0.4.0-transport-preview.apk > SHA256SUMS.txt
+      - name: Prepare corresponding source and test notes
+        run: |
+          cp docs/TRANSPORT_PREVIEW_TEST.md dist/TEST-NOTES.md
+          printf '%s\n' "$GITHUB_SHA" > SOURCE_COMMIT.txt
+          go version > GO_VERSION.txt
+          (cd native/quic && go mod vendor && go list -m > MODULE.txt)
+          tar --exclude=.git --exclude=.gradle --exclude=dist --exclude='*/build' --exclude='*.aar' --exclude='*.apk' -czf dist/Cheems-Core-v0.4.0-transport-preview-source.tar.gz .
+          cd dist
+          sha256sum Cheems-Core-v0.4.0-transport-preview-source.tar.gz >> SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cheems-transport-preview-apk
+          path: dist/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cheems-quic-android-aar
+          path: |
+            native/quic/cheems-quic.aar
+            native/quic/cheems-quic-sources.jar
+          if-no-files-found: error
+
