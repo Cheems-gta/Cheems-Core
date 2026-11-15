@@ -215,7 +215,7 @@ public final class CoreService extends VpnService {
                 if (nativeNode && !destroyed) {
                   if (!Hysteria2Native.isRunning()) {
                     log("原生节点连接已丢失，代理将停止");
-                    stopSelfResult(id);
+                    stopSelf();
                     return;
                   }
                   watchNativeConnection(id);
