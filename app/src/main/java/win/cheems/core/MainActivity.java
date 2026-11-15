@@ -132,15 +132,6 @@ public final class MainActivity extends Activity {
     logs = label("等待导入节点", 12, muted);
     events.addView(logs);
     android.content.SharedPreferences startup = getSharedPreferences("vpn_startup", MODE_PRIVATE);
-    if (startup.getBoolean("crash_pending", false)) {
-      String category = startup.getString("crash_type", "Unknown");
-      String site = startup.getString("crash_site", "unknown");
-      String thread = startup.getString("crash_thread", "unknown");
-      CoreService.lastFailure = "上次 VPN 启动期间发生应用异常；查看运行记录";
-      CoreService.log("上次应用异常：" + category + " · " + thread + " · " + site);
-      startup.edit().remove("crash_pending").remove("crash_type")
-          .remove("crash_site").remove("crash_thread").commit();
-    }
     if (startup.getBoolean("pending", false)) {
       String interrupted = startup.getString("last_stage", "未知阶段");
       CoreService.connecting = false;
