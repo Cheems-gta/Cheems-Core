@@ -60,5 +60,12 @@ public class NodeAnyTLSTest {
     assertFalse(original.hasInsecureTlsFlag());
     assertEquals("old-pin", original.certificateSHA256());
   }
+  @Test public void ipv6URIKeepsAnUnbracketedAddressForNativeDialer() throws Exception {
+    Node n = Subscription.parse("anytls://secret@[2001:db8::1]:8443?fp=chrome").get(0);
+    assertTrue(n.unsupported, n.supported());
+    assertEquals("2001:db8::1", n.host);
+    assertEquals(8443, n.port);
+  }
+
 }
 

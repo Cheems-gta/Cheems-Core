@@ -41,10 +41,11 @@ public class CoreTest {
   }
 
   @Test
-  public void pluginsAndInsecureTlsAreNotSilentlyIgnored() throws Exception {
+  public void pluginsAreRejectedAndNodeTlsPolicyIsPreserved() throws Exception {
     assertFalse(Subscription.parse("trojan://password@example.com:443?type=ws").get(0).supported());
-    assertFalse(
-        Subscription.parse("trojan://password@example.com:443?allowInsecure=1").get(0).supported());
+    Node insecure = Subscription.parse("trojan://password@example.com:443?allowInsecure=1").get(0);
+    assertTrue(insecure.unsupported, insecure.supported());
+    assertEquals("true", Node.value(insecure.source, "skip-cert-verify", "false"));
     assertFalse(
         Subscription.parse("ss://YWVzLTEyOC1nY206cA@example.com:443?plugin=obfs-local")
             .get(0)

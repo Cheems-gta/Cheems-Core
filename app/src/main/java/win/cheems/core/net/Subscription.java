@@ -155,7 +155,7 @@ public final class Subscription {
       URI u = new URI(link);
       Map<String, Object> m = new LinkedHashMap<>();
       m.put("type", "anytls");
-      m.put("server", u.getHost() == null ? "" : u.getHost());
+      m.put("server", u.getHost() == null ? "" : u.getHost().replace("[", "").replace("]", ""));
       m.put("port", (u.getPort() == -1 ? 443 : u.getPort()));
       m.put("name", u.getRawFragment() == null ? "AnyTLS · " + u.getHost() : urlDecode(u.getRawFragment()));
       String password = u.getRawUserInfo() == null ? "" : urlDecode(u.getRawUserInfo());
