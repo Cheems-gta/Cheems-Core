@@ -61,6 +61,28 @@ public final class Subscription {
     if (separator <= 0)
       throw new IllegalArgumentException("节点分享链接缺少协议头（例如 hysteria2://）");
     String scheme = link.substring(0, separator).toLowerCase(Locale.ROOT);
+    if (scheme.equals("tuic")) {
+      URI u = new URI(link);
+      Map<String, Object> m = new LinkedHashMap<>();
+      m.put("type", "tuic");
+      m.put("server", u.getHost() == null ? "" : u.getHost().replace("[", "").replace("]", ""));
+      m.put("port", u.getPort());
+      m.put("name", u.getRawFragment() == null ? "TUIC · " + u.getHost() : urlDecode(u.getRawFragment()));
+      String credentials = u.getRawUserInfo() == null ? "" : u.getRawUserInfo();
+      String[] pair = credentials.split(":", 2);
+      m.put("uuid", urlDecode(pair[0]));
+      m.put("password", pair.length == 2 ? urlDecode(pair[1]) : "");
+      if (u.getRawQuery() != null) for (String part : u.getRawQuery().split("&")) {
+        String[] kv = part.split("=", 2);
+        String key = urlDecode(kv[0]), value = kv.length == 2 ? urlDecode(kv[1]) : "";
+        // Preserve every option; later validation must explicitly reject unsupported values.
+        m.put(key, value);
+        if (key.equals("sni") || key.equals("peer")) m.put("sni", value);
+        if (key.equals("congestion_control")) m.put("congestion-controller", value);
+        if (key.equals("udp_relay_mode")) m.put("udp-relay-mode", value);
+      }
+      return new Node(m);
+    }
     if (scheme.equals("vmess")) {
       Object decoded = new Yaml(new SafeConstructor(new LoaderOptions())).load(decode(link.substring(separator + 3)));
       if (!(decoded instanceof Map)) throw new IllegalArgumentException("VMess 链接不是有效 JSON 对象");

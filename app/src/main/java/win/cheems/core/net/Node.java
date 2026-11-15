@@ -41,6 +41,8 @@ public final class Node {
     else if (type.equals("vmess") && !value(m, "header-type", "none").equalsIgnoreCase("none")) reason = "暂不支持 VMess TCP header type " + value(m, "header-type", "");
     else if (type.equals("vmess") && !value(m, "client-fingerprint", "").isEmpty()) reason = "VMess 客户端 TLS 指纹尚未实现";
     else if (type.equals("vmess") && !value(m, "path", "").isEmpty()) reason = "当前 VMess TCP 模式不接受 path 参数";
+    else if (type.equals("tuic") && (!uuid.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}") || password.isEmpty())) reason = "TUIC v5 UUID 或密码无效";
+    else if (type.equals("tuic")) reason = "TUIC 参数已保留，Android VPN 启动接口尚未接入";
     else if (type.equals("ss2022") && !validSS2022Key(cipher, password)) reason = "Shadowsocks 2022 PSK 格式或长度无效";
     else if (type.equals("hysteria2") && (!value(m, "obfs", "").isEmpty() || !value(m, "obfs-password", "").isEmpty()))
       reason = "当前独立内核尚不支持 Hysteria 2 混淆（Salamander）";
