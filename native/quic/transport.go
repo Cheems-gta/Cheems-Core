@@ -23,7 +23,7 @@ type Config struct {
 }
 
 type Transport struct {
-	connection quic.Connection
+	connection *quic.Conn
 	packet     net.PacketConn
 	closeOnce  sync.Once
 	closeError error

@@ -84,3 +84,8 @@ SS2022 TCP is wired through the independent `github.com/sagernet/sing-shadowsock
 ## SS2022 UDP checkpoint
 
 The SS2022 native TUN adapter now routes UDP through protected connected sockets to the selected node. Local reference-service UDP echo tests pass for AES-128-GCM, AES-256-GCM and ChaCha20-Poly1305, with context cancellation and rejected-protection checks. DNS can use this UDP backend and retains the existing same-node TCP fallback. This supersedes the earlier TCP-only checkpoint; UDP remains experimental pending provider and Android device verification. No APK is delivered.
+
+
+## TUIC v5 native checkpoint
+
+An experimental native TUIC v5 adapter uses `sing-quic` v0.7.1 with protected physical-network sockets, strict TLS, TCP, UDP datagrams and UDP stream relay. Local reference-service round trips pass for TCP and both UDP modes; wrong passwords and unknown TLS roots are rejected. Existing transport race tests and vet pass after updating upstream quic-go to v0.59.0 to resolve QPACK API conflicts. This adds a second QUIC implementation; APK size and device resource use remain unmeasured. Android import/start/TUN registration for TUIC is not implemented yet, so TUIC remains unavailable in the app. Provider/device interoperability, license/source distribution and packaged native binding checks remain required. The GPL-3.0-or-later sing-quic dependency must be included in release source/license compliance. No APK is delivered.

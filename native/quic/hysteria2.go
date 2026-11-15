@@ -71,7 +71,7 @@ func DialHysteria2(ctx context.Context, cfg Hysteria2Config) (*Hysteria2Session,
 		return nil, err
 	}
 	qc := &quic.Config{KeepAlivePeriod: 15 * time.Second, MaxIdleTimeout: 60 * time.Second, EnableDatagrams: true}
-	var conn quic.EarlyConnection
+	var conn *quic.Conn
 	var packet net.PacketConn
 	if cfg.Network != nil {
 		var remote *net.UDPAddr
@@ -92,7 +92,7 @@ func DialHysteria2(ctx context.Context, cfg Hysteria2Config) (*Hysteria2Session,
 	transport := &Transport{connection: conn, packet: packet}
 	h3 := &http3.Transport{
 		TLSClientConfig: tlsConfig,
-		Dial: func(context.Context, string, *tls.Config, *quic.Config) (quic.EarlyConnection, error) {
+		Dial: func(context.Context, string, *tls.Config, *quic.Config) (*quic.Conn, error) {
 			return conn, nil
 		},
 	}

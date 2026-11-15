@@ -39,15 +39,18 @@ func TestProtectedHysteria2EndToEnd(t *testing.T) {
 				w.WriteHeader(403)
 				return
 			}
+			w.Header().Set("Hysteria-UDP", "true")
 			w.WriteHeader(233)
 		}),
 	}
 	server.TLSConfig.Certificates = []tls.Certificate{cert}
-	server.StreamHijacker = func(kind http3.FrameType, _ quic.ConnectionTracingID, s quic.Stream, e error) (bool, error) {
+	handleHY2Stream := func(s *quic.Stream) {
+		kind, e := quicvarint.Read(unbufferedVarintReader{s})
 		if e != nil || kind != 0x401 {
-			return false, e
+			s.CancelRead(1)
+			return
 		}
-		go func() {
+		func() {
 			defer s.Close()
 			_ = s.SetDeadline(time.Now().Add(5 * time.Second))
 			reader := unbufferedVarintReader{s}
@@ -74,10 +77,49 @@ func TestProtectedHysteria2EndToEnd(t *testing.T) {
 				_, _ = s.Write(payload)
 			}
 		}()
-		return true, nil
 	}
+
 	defer server.Close()
-	go func() { _ = server.Serve(packet) }()
+	listener, err := quic.Listen(packet, http3.ConfigureTLSConfig(server.TLSConfig), &quic.Config{EnableDatagrams: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go func() {
+		for {
+			conn, e := listener.Accept(context.Background())
+			if e != nil {
+				return
+			}
+			go func() {
+				raw, e := server.NewRawServerConn(conn)
+				if e != nil {
+					return
+				}
+				go func() {
+					for {
+						stream, e := conn.AcceptUniStream(context.Background())
+						if e != nil {
+							return
+						}
+						go raw.HandleUnidirectionalStream(stream)
+					}
+				}()
+				auth, e := conn.AcceptStream(context.Background())
+				if e != nil {
+					return
+				}
+				go raw.HandleRequestStream(auth)
+				for {
+					stream, e := conn.AcceptStream(context.Background())
+					if e != nil {
+						return
+					}
+					go handleHY2Stream(stream)
+				}
+			}()
+		}
+	}()
 	n := &testNetwork{ip: "127.0.0.1", allow: true}
 	port := packet.LocalAddr().(*net.UDPAddr).Port
 	cfg := Hysteria2Config{Address: net.JoinHostPort("edge.invalid", strconv.Itoa(port)), ServerName: "127.0.0.1", Password: "secret", TrustedCAPEM: string(ca), Network: n}
