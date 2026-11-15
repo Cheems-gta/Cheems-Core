@@ -98,21 +98,10 @@ public final class MainActivity extends Activity {
           Node n = current();
           if (n == null) return;
           if (n.hasInsecureTlsFlag()) {
-            new AlertDialog.Builder(this)
-                .setTitle("节点 TLS 证书验证方式")
-                .setMessage("订阅要求跳过证书验证，但这可能允许他人冒充节点。"
-                    + "优先使用可信 CA 或证书指纹。以下选择仅对本次连接有效。")
-                .setItems(new String[] {
-                    "严格验证并尝试（推荐）",
-                    "粘贴可信 CA 证书（PEM，本次）",
-                    "按订阅跳过验证（高风险，本次）"
-                }, (dialog, which) -> {
-                  if (which == 0) startProxy(n, false, "");
-                  else if (which == 1) askTrustedCA(n);
-                  else confirmUnverifiedTLS(n);
-                })
-                .setNegativeButton("取消", null)
-                .show();
+            TlsChoiceDialog.show(this,
+                () -> startProxy(n, false, ""),
+                () -> askTrustedCA(n),
+                () -> confirmUnverifiedTLS(n));
           } else {
             startProxy(n, false, "");
           }
