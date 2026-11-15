@@ -170,6 +170,19 @@ public final class Hysteria2Native {
     binding().getMethod("stop").invoke(null);
   }
 
+  private static long tunnelMetric(String name) {
+    try { return ((Number)binding().getMethod(name).invoke(null)).longValue(); }
+    catch (ReflectiveOperationException | LinkageError e) { return 0; }
+  }
+  public static long tunnelUploaded() { return tunnelMetric("tunnelUploaded"); }
+  public static long tunnelDownloaded() { return tunnelMetric("tunnelDownloaded"); }
+  public static long tunnelConnections() { return tunnelMetric("tunnelConnections"); }
+  public static long tunnelDNSQueries() { return tunnelMetric("tunnelDNSQueries"); }
+  public static String tunnelLastError() {
+    try { return (String)binding().getMethod("tunnelLastError").invoke(null); }
+    catch (ReflectiveOperationException | LinkageError e) { return ""; }
+  }
+
   public static boolean isRunning() {
     try { return (Boolean) binding().getMethod("isRunning").invoke(null); }
     catch (ReflectiveOperationException | LinkageError e) { return false; }

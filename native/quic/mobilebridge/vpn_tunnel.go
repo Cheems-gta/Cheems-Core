@@ -61,7 +61,8 @@ func StartTunnel(fd int64) error {
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	handler := &vpnFlowHandler{tcp: current, udp: datagrams}
+	metrics := resetTunnelDiagnostics()
+	handler := &vpnFlowHandler{tcp: current, udp: datagrams, dnsGate: make(chan struct{}, 32), metrics: metrics, ctx: ctx}
 	stack, err := tun.NewStack("go", tun.StackOptions{Context: ctx, Tun: device, TunOptions: options, Handler: handler, UDPTimeout: 2 * time.Minute, ICMPTimeout: time.Minute})
 	if err != nil {
 		cancel()
@@ -109,11 +110,20 @@ func StopTunnel() {
 }
 
 type vpnFlowHandler struct {
-	tcp tcpBackend
-	udp udpBackend
+	ctx     context.Context
+	tcp     tcpBackend
+	udp     udpBackend
+	dnsGate chan struct{}
+	metrics *tunnelMetrics
 }
 
-func (h *vpnFlowHandler) JudgeFlow(uint8, netip.AddrPort, netip.AddrPort, []byte) tun.FlowVerdict {
+func isVirtualDNS(destination netip.AddrPort) bool {
+	return destination.Port() == 53 && (destination.Addr().Unmap() == netip.MustParseAddr("10.77.0.2") || destination.Addr() == netip.MustParseAddr("fd77:77::2"))
+}
+func (h *vpnFlowHandler) JudgeFlow(protocol uint8, _ netip.AddrPort, destination netip.AddrPort, _ []byte) tun.FlowVerdict {
+	if protocol == 17 && isVirtualDNS(destination) {
+		return tun.FlowVerdict{Action: tun.ActionHijackDNS}
+	}
 	return tun.FlowVerdict{Action: tun.ActionAccept}
 }
 
@@ -122,20 +132,26 @@ func (h *vpnFlowHandler) NewConnectionEx(ctx context.Context, conn net.Conn, sou
 	if onClose != nil {
 		defer onClose(nil)
 	}
+	if isVirtualDNS(destination.AddrPort()) {
+		destination = M.ParseSocksaddr("1.1.1.1:53")
+	}
+	h.metricsOrCurrent().active.Add(1)
+	defer h.metricsOrCurrent().active.Add(-1)
 	upstream, err := h.tcp.OpenTCP(ctx, destination.AddrString(), int(destination.Port))
 	if err != nil {
+		h.recordError("TCP 建连", err)
 		return
 	}
 	defer upstream.Close()
 	done := make(chan struct{})
 	go func() {
-		_, _ = io.Copy(upstream, conn)
+		_, _ = io.Copy(countedWriter{upstream, &h.metricsOrCurrent().up}, conn)
 		if cw, ok := upstream.(interface{ CloseWrite() error }); ok {
 			_ = cw.CloseWrite()
 		}
 		close(done)
 	}()
-	_, _ = io.Copy(conn, upstream)
+	_, _ = io.Copy(countedWriter{conn, &h.metricsOrCurrent().down}, upstream)
 	_ = conn.Close()
 	<-done
 }
@@ -153,7 +169,10 @@ func (h *vpnFlowHandler) NewPacketConnectionEx(ctx context.Context, conn N.Packe
 		return
 	}
 	defer assoc.Close()
+	h.metricsOrCurrent().active.Add(1)
+	defer h.metricsOrCurrent().active.Add(-1)
 	go func() {
+		defer assoc.Close()
 		for {
 			packet := buf.NewSize(65535)
 			target, e := conn.ReadPacket(packet)
@@ -164,8 +183,10 @@ func (h *vpnFlowHandler) NewPacketConnectionEx(ctx context.Context, conn N.Packe
 			payload := append([]byte(nil), packet.Bytes()...)
 			packet.Release()
 			if e = assoc.WriteTo(payload, target.String()); e != nil {
+				h.recordError("UDP 发送", e)
 				return
 			}
+			h.metricsOrCurrent().up.Add(int64(len(payload)))
 		}
 	}()
 	for {
@@ -179,43 +200,91 @@ func (h *vpnFlowHandler) NewPacketConnectionEx(ctx context.Context, conn N.Packe
 		if e = conn.WritePacket(packet, target); e != nil {
 			return
 		}
+		h.metricsOrCurrent().down.Add(int64(len(message.Payload)))
 	}
 }
 
 func (h *vpnFlowHandler) NewDNSPacket(payload []byte, source, destination M.Socksaddr, writer N.PacketWriter) {
+	if h.ctx != nil && h.ctx.Err() != nil {
+		return
+	}
+	if len(payload) < 12 {
+		return
+	}
+	if h.dnsGate != nil {
+		select {
+		case h.dnsGate <- struct{}{}:
+		default:
+			h.recordError("DNS 请求过多", errors.New("busy"))
+			return
+		}
+	}
+	query := append([]byte(nil), payload...)
+	h.metricsOrCurrent().dns.Add(1)
+	// sing-tun invokes this callback on its packet engine; network I/O must not block it.
+	go func() {
+		if h.dnsGate != nil {
+			defer func() { <-h.dnsGate }()
+		}
+		h.forwardDNS(query, source, destination, writer)
+	}()
+}
+func matchingDNSResponse(query, response []byte) bool {
+	return len(response) >= 12 && response[0] == query[0] && response[1] == query[1] && response[2]&0x80 != 0
+}
+func (h *vpnFlowHandler) forwardDNS(query []byte, source, destination M.Socksaddr, writer N.PacketWriter) {
+	parent := h.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	if parent.Err() != nil {
+		return
+	}
+	send := func(response []byte) error {
+		if !matchingDNSResponse(query, response) {
+			return errors.New("invalid DNS response")
+		}
+		packet := buf.NewSize(len(response))
+		_, _ = packet.Write(response)
+		// Return the virtual DNS address originally queried by Android, including IPv6.
+		if err := writer.WritePacket(packet, destination); err != nil {
+			return err
+		}
+		h.metricsOrCurrent().up.Add(int64(len(query)))
+		h.metricsOrCurrent().down.Add(int64(len(response)))
+		return nil
+	}
 	if h.udp != nil {
 		assoc, err := h.udp.OpenUDPAssociation("1.1.1.1:53")
 		if err == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			if err = assoc.WriteTo(payload, "1.1.1.1:53"); err == nil {
+			ctx, cancel := context.WithTimeout(parent, 2*time.Second)
+			if err = assoc.WriteTo(query, "1.1.1.1:53"); err == nil {
 				response, readErr := assoc.Read(ctx)
-				if readErr == nil {
-					packet := buf.NewSize(len(response.Payload))
-					_, _ = packet.Write(response.Payload)
-					_ = writer.WritePacket(packet, M.ParseSocksaddr(response.Address))
+				if readErr == nil && send(response.Payload) == nil {
 					cancel()
-					_ = assoc.Close()
+					assoc.Close()
 					return
 				}
 			}
 			cancel()
-			_ = assoc.Close()
+			assoc.Close()
 		}
 	}
-	response, err := dnsOverTCP(h.tcp, payload)
+	response, err := dnsOverTCP(parent, h.tcp, query)
 	if err != nil {
+		h.recordError("DNS 经节点解析", err)
 		return
 	}
-	packet := buf.NewSize(len(response))
-	_, _ = packet.Write(response)
-	_ = writer.WritePacket(packet, M.ParseSocksaddr("1.1.1.1:53"))
+	if err = send(response); err != nil {
+		h.recordError("DNS 回复", err)
+	}
 }
 
-func dnsOverTCP(session tcpBackend, query []byte) ([]byte, error) {
+func dnsOverTCP(parent context.Context, session tcpBackend, query []byte) ([]byte, error) {
 	if len(query) == 0 || len(query) > 65535 {
 		return nil, errors.New("invalid DNS packet size")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	stream, err := session.OpenTCP(ctx, "1.1.1.1", 53)
 	if err != nil {

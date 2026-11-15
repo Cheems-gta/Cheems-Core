@@ -14,11 +14,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.security.SecureRandom;
 import win.cheems.core.net.Hysteria2Native;
 import win.cheems.core.net.Node;
+import win.cheems.core.net.LocalProxyProbe;
 
 public final class CoreService extends VpnService {
   static volatile Node selected;
   static volatile ProxyCore core;
   static volatile boolean connecting;
+  static volatile boolean tunnelEstablished;
+  static volatile boolean forwardingVerified;
   static volatile String lastFailure;
   static volatile String localHttpPassword;
   private String ownedHttpPassword;
@@ -47,6 +50,7 @@ public final class CoreService extends VpnService {
   private void watchNativeConnection(int startId) {
     Thread watcher = new Thread(
         () -> {
+          String previousDiagnostic = "";
           while (!destroyed && core == ownedCore) {
             try {
               Thread.sleep(2000);
@@ -54,6 +58,11 @@ public final class CoreService extends VpnService {
               return;
             }
             if (destroyed || core != ownedCore) return;
+            String diagnostic = Hysteria2Native.tunnelLastError();
+            if (!diagnostic.isEmpty() && !diagnostic.equals(previousDiagnostic)) {
+              previousDiagnostic = diagnostic;
+              log("隧道诊断：" + diagnostic);
+            }
             if (!Hysteria2Native.isRunning()) {
               log("原生节点连接已中断，正在关闭失效代理");
               stopSelfResult(startId);
@@ -71,6 +80,8 @@ public final class CoreService extends VpnService {
   public void onCreate() {
     super.onCreate();
     destroyed = false;
+    tunnelEstablished = false;
+    forwardingVerified = false;
     byte[] secret = new byte[32];
     new SecureRandom().nextBytes(secret);
     ownedHttpPassword = Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
@@ -91,7 +102,7 @@ public final class CoreService extends VpnService {
         new Notification.Builder(this, "core")
             .setSmallIcon(android.R.drawable.stat_sys_upload_done)
             .setContentTitle("Cheems Core · VPN")
-            .setContentText("正在通过所选节点转发设备流量")
+            .setContentText("VPN服务启动中，节点转发待验证")
             .setContentIntent(open)
             .setOngoing(true)
             .build();
@@ -132,9 +143,21 @@ public final class CoreService extends VpnService {
                   return;
                 }
                 ownedCore.start(node);
+                log("本地 HTTP 代理已启动；正在自动检查节点 TCP 转发");
+                try {
+                  LocalProxyProbe.Result result = LocalProxyProbe.check(ownedHttpPassword);
+                  if (destroyed || core != ownedCore) return;
+                  forwardingVerified = true;
+                  lastFailure = null;
+                  log("节点 TCP 转发验证通过 · " + result.elapsedMs + " ms · " + result.responseStatus);
+                  if (nativeNode) log("VPN 接口已建立；全局流量仍以应用访问和隧道计数为准");
+                } catch (IOException probeFailure) {
+                  if (destroyed || core != ownedCore) return;
+                  forwardingVerified = false;
+                  lastFailure = "测试目标转发未通过；查看运行记录";
+                  log("自动转发检查失败：" + probeFailure.getMessage());
+                }
                 updateConnecting(false);
-                lastFailure = null;
-                log("节点已连接，本地 HTTP CONNECT 代理启动成功");
                 if (nativeNode && !destroyed) {
                   if (!Hysteria2Native.isRunning()) {
                     log("原生节点连接已丢失，代理将停止");
@@ -219,6 +242,7 @@ public final class CoreService extends VpnService {
     if(vpnInterface==null) throw new IOException("Android denied VPN interface establishment");
     setUnderlyingNetworks(new android.net.Network[]{physicalNetwork});
     Hysteria2Native.startTunnel(vpnInterface.getFd());
+    if (!destroyed && core == ownedCore) tunnelEstablished = true;
     log("Android全局VPN和IPv4/IPv6隧道已启动");
   }
 
@@ -232,7 +256,11 @@ public final class CoreService extends VpnService {
     try { if(Hysteria2Native.isPackaged()) Hysteria2Native.stopTunnel(); }
     catch(Exception e) { log("TUN关闭异常"); }
     if(vpnInterface!=null) {try{vpnInterface.close();}catch(IOException ignored){} vpnInterface=null;}
-    if (core == ownedCore) core = null;
+    if (core == ownedCore) {
+      tunnelEstablished = false;
+      forwardingVerified = false;
+      core = null;
+    }
     if (ownedHttpPassword != null && ownedHttpPassword.equals(localHttpPassword))
       localHttpPassword = null;
     // Stop synchronously so an old asynchronous shutdown cannot destroy
@@ -255,7 +283,7 @@ public final class CoreService extends VpnService {
 
   @Override
   public IBinder onBind(Intent i) {
-    return null;
+    return super.onBind(i);
   }
 }
 

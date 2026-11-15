@@ -5,7 +5,6 @@ on:
     paths:
       - 'native/quic/**'
       - 'app/**'
-      - 'gradle.properties'
       - '.github/workflows/android-vpn-checks.yml'
   pull_request:
     branches: [compatibility]
@@ -71,6 +70,11 @@ jobs:
           grep -Eq 'startVMessWebSocketWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, long, boolean, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startVMessGRPCWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, long, boolean, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startVLESSRealityWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, long, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'tunnelUploaded\(\)' /tmp/cheems-native-api.txt
+          grep -Eq 'tunnelDownloaded\(\)' /tmp/cheems-native-api.txt
+          grep -Eq 'tunnelConnections\(\)' /tmp/cheems-native-api.txt
+          grep -Eq 'tunnelDNSQueries\(\)' /tmp/cheems-native-api.txt
+          grep -Eq 'tunnelLastError\(\)' /tmp/cheems-native-api.txt
           grep -Eq 'startTunnel\(long\)' /tmp/cheems-native-api.txt
       - name: Compile and lint Android sources (no APK packaging)
         run: |
