@@ -103,3 +103,10 @@ VMess and VLESS standard bidirectional Hunk/Tun over verified TLS/HTTP2 are impl
 ## Reality preview checkpoint
 
 VLESS TCP Reality (empty flow) is integrated through Android import and native startup. Supported fingerprints are chrome/firefox. Independent synthetic reference tests verify decrypted ClientHello fields, authenticated TLS and VLESS echo traffic, and rejection of wrong public keys/short IDs and ordinary TLS certificates. Go race/vet pass. XTLS Vision, Reality over WS/gRPC, ML-DSA authentication and other fingerprints remain unsupported. The three preview families now have implementation paths: VMess/VLESS TLS WebSocket, standard TLS gRPC Tun, and VLESS TCP Reality. This is a scoped transport preview, not universal compatibility or proof of Flybit interoperability. Android source CI must pass before building the combined device-test APK; physical device acceptance follows.
+
+
+## Virtual DNS and readiness correction
+
+Previously the flow judge accepted virtual DNS as generic UDP, bypassing NewDNSPacket; replies also used the upstream resolver address rather than the virtual address queried by Android. Both paths are corrected. DNS requests are copied and handled asynchronously with bounded concurrency and tunnel-lifetime cancellation; UDP falls back to TCP through the selected backend. Virtual TCP DNS is redirected to the same node resolver. Packet-dispatch regressions cover IPv4/IPv6 replies and UDP-to-TCP fallback without root or live provider access.
+
+Startup now automatically checks the local authenticated proxy through the selected node to example.com:80, and distinguishes interface establishment from successful target TCP forwarding. It does not claim TUN/device validation from that check. UI metrics include native TUN traffic/DNS counts and sanitized error stages, with per-session isolation. Physical Flybit validation is still required; certificate trust errors are not automatically bypassed.

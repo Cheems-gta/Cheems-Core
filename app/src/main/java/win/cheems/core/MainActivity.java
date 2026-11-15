@@ -234,6 +234,10 @@ public final class MainActivity extends Activity {
   }
 
   private void launchVpnService(Node node, boolean allowUnverifiedTLS, String trustedCAPEM) {
+    if (CoreService.connecting || (CoreService.core != null && CoreService.core.running())) {
+      message("当前服务正在连接或运行，请先停止再重试。");
+      return;
+    }
     if (Build.VERSION.SDK_INT >= 33
         && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -466,11 +470,19 @@ public final class MainActivity extends Activity {
         () -> {
           try {
             LocalProxyProbe.Result result = LocalProxyProbe.check(secret);
+            if (CoreService.core == activeCore) {
+              CoreService.forwardingVerified = true;
+              CoreService.lastFailure = null;
+            }
             CoreService.log(
                 "完整转发验证成功 · " + result.elapsedMs + " ms · " + result.responseStatus);
           } catch (Exception e) {
             // Never print provider credentials or temporary proxy auth tokens.
             String detail = e.getMessage();
+            if (CoreService.core == activeCore) {
+              CoreService.forwardingVerified = false;
+              CoreService.lastFailure = "测试目标转发未通过；查看运行记录";
+            }
             CoreService.log("完整转发失败 · "
                 + (detail == null || detail.isBlank()
                     ? e.getClass().getSimpleName() : detail)
@@ -488,14 +500,21 @@ public final class MainActivity extends Activity {
     boolean nativeDisconnected = localRunning && CoreService.selected != null
         && nativeProtocol(CoreService.selected) && !Hysteria2Native.isRunning();
     status.setText(
-        CoreService.connecting ? "● 正在连接节点…" :
+        CoreService.connecting ? (CoreService.tunnelEstablished ? "● VPN已建立，正在验证节点转发…" : "● 正在连接节点…") :
         nativeDisconnected ? "● 原生节点已断开" :
-        localRunning ? "● 本地代理运行中" :
+        localRunning ? (CoreService.lastFailure != null ? "● " + CoreService.lastFailure
+            : CoreService.tunnelEstablished
+                ? (CoreService.forwardingVerified ? "● 节点TCP转发已验证，VPN已建立" : "● VPN已建立，转发待验证")
+                : "● 本地代理运行中，未建立全局VPN") :
         CoreService.lastFailure != null ? "● " + CoreService.lastFailure : "● 未启动");
-    metrics.setText(
-        c == null
-            ? "连接 0   ↑ 0 B   ↓ 0 B"
-            : "连接 " + c.active() + "   ↑ " + c.uploaded() + " B   ↓ " + c.downloaded() + " B");
+    if (localRunning && CoreService.tunnelEstablished) {
+      metrics.setText("隧道连接 " + Hysteria2Native.tunnelConnections()
+          + "   ↑ " + Hysteria2Native.tunnelUploaded() + " B   ↓ " + Hysteria2Native.tunnelDownloaded()
+          + " B\nDNS 查询 " + Hysteria2Native.tunnelDNSQueries());
+    } else {
+      metrics.setText(c == null ? "连接 0   ↑ 0 B   ↓ 0 B"
+          : "本地连接 " + c.active() + "   ↑ " + c.uploaded() + " B   ↓ " + c.downloaded() + " B");
+    }
     logs.setText(CoreService.logs());
   }
 
