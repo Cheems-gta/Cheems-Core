@@ -106,6 +106,7 @@ public final class Subscription {
         sni = Node.value(json, "host", "");
       m.put("sni", sni.isEmpty() ? host : sni);
       m.put("client-fingerprint", Node.value(json, "fp", ""));
+      m.put("ws-host", Node.value(json,"host",host));
       String path = Node.value(json, "path", "");
       if (!path.isEmpty()) m.put("path", path);
       return new Node(m);
@@ -124,6 +125,8 @@ public final class Subscription {
           String key = urlDecode(kv[0]), value = kv.length == 2 ? urlDecode(kv[1]) : "";
           if (key.equals("sni") || key.equals("peer")) m.put("sni", value);
           if (key.equals("type")) m.put("network", value);
+          if (key.equals("path")) m.put("path",value);
+          if (key.equals("host")) m.put("ws-host",value);
           if (key.equals("security")) {
             m.put("tls", value.equalsIgnoreCase("tls") || value.equalsIgnoreCase("reality"));
             if (value.equalsIgnoreCase("reality")) m.put("reality-opts", Collections.singletonMap("enabled", true));

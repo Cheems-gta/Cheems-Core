@@ -88,3 +88,8 @@ TUIC v5 share-link/YAML import, strict option validation, gomobile startup and n
 ## WebSocket native transport checkpoint
 
 Optional ordinary RFC6455 WebSocket transport is implemented for VMess and VLESS native clients using gorilla/websocket v1.5.3 (BSD-2-Clause). It upgrades an already protected TCP/TLS socket and preserves the configured HTTP host/path. Verified-TLS VMess and VLESS WebSocket round trips pass against local reference peers. WebSocket early data, arbitrary custom headers, gRPC and Reality remain unimplemented. Android import/start binding for WebSocket is still pending, so the app continues rejecting WebSocket nodes. This is source progress, not provider interoperability; no APK is delivered.
+
+
+## WebSocket Android integration checkpoint
+
+VMess and VLESS ordinary WebSocket transport options now cross the Android importer and gomobile startup boundary. HTTP Host and path are preserved from share links and YAML; non-Host custom headers and early-data configuration are rejected. Native verified-TLS WebSocket reference-service tests and Go race/vet checks pass. Android source-only CI checks the generated WebSocket startup API signatures and JVM import tests. gRPC and Reality remain pending; no APK should be delivered until all three requested transport integrations pass their source checks. Provider and physical-device validation are still required.

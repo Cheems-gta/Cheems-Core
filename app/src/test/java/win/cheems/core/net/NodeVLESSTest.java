@@ -34,7 +34,7 @@ public final class NodeVLESSTest {
 
   @Test public void realityWebsocketFlowAndMissingTlsAreRejected() throws Exception {
     assertFalse(Subscription.parse("vless://" + UUID + "@edge.example.com:443?type=tcp&security=reality").get(0).supported());
-    assertFalse(Subscription.parse("vless://" + UUID + "@edge.example.com:443?type=ws&security=tls").get(0).supported());
+    assertTrue(Subscription.parse("vless://" + UUID + "@edge.example.com:443?type=ws&security=tls").get(0).supported());
     assertFalse(Subscription.parse("vless://" + UUID + "@edge.example.com:443?type=tcp&security=none").get(0).supported());
     assertFalse(Subscription.parse("vless://not-a-uuid@edge.example.com:443?type=tcp&security=tls").get(0).supported());
     assertFalse(Subscription.parse("vless://" + UUID + "@edge.example.com:443?type=tcp&security=tls&flow=xtls-rprx-vision").get(0).supported());

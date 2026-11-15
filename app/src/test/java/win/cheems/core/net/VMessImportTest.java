@@ -24,12 +24,12 @@ public class VMessImportTest {
     assertTrue(node.tls());
   }
 
-  @Test public void rejectsUnimplementedVmessWebSocket() throws Exception {
+  @Test public void importsVmessWebSocket() throws Exception {
     Node node = Subscription.parse(link(
         "{\"ps\":\"ws\",\"add\":\"edge.example\",\"port\":443," +
         "\"id\":\"d342d11e-d424-4583-b36b-524ab1f0afa4\",\"aid\":0," +
         "\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"tls\":\"tls\"}")).get(0);
-    assertFalse(node.supported());
-    assertTrue(node.unsupported.contains("ws"));
+    assertTrue(node.unsupported,node.supported());
+    assertTrue(node.isWebSocket());
   }
 }

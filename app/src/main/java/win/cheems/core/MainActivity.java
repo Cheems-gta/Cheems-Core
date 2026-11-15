@@ -137,7 +137,7 @@ public final class MainActivity extends Activity {
       message("已复制本次会话的代理用户名和密码。请仅在你信任的应用中配置代理。");
     });
     actions.addView(
-        label("HY2、AnyTLS、VLESS、VMess、SS2022 与 TUIC v5 可建立实验性全局 VPN。VMess UDP 需节点支持；SS2022 UDP 为实验功能。WebSocket、gRPC 尚未接入。", 13, muted));
+        label("HY2、AnyTLS、VLESS、VMess、SS2022 与 TUIC v5 可建立实验性全局 VPN。VMess UDP 需节点支持；SS2022 UDP 为实验功能。VMess/VLESS WebSocket 已接入；gRPC 尚未接入。", 13, muted));
     LinearLayout events = card(root);
     events.addView(label("03  运行记录", 17, ink));
     logs = label("等待导入节点", 12, muted);
@@ -157,7 +157,7 @@ public final class MainActivity extends Activity {
         label(
             "已实现：SS AEAD · Trojan TCP/TLS · SOCKS5 · HTTP(S)\n"
                 + "HY2：实验性 VPN，UDP 取决于节点。AnyTLS/VLESS TCP+TLS：实验性 VPN。SOCKS5：实验性 TCP/UDP VPN。\n"
-                + "暂不支持：VMess WS/gRPC、VLESS Reality/WS/gRPC、协议插件和 AnyTLS UDP。\n"
+                + "暂不支持：VMess gRPC、VLESS Reality/gRPC、协议插件和 AnyTLS UDP。\n"
                 + "节点凭据仅加密保存在本机，不上传到项目仓库。",
             12,
             muted));

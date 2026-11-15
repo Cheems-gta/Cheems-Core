@@ -40,7 +40,7 @@ public final class Node {
     else if (type.equals("vmess") && !validAlterId(value(m, "alterId", "0"))) reason = "VMess alterId 必须为 0 到 65535";
     else if (type.equals("vmess") && !value(m, "header-type", "none").equalsIgnoreCase("none")) reason = "暂不支持 VMess TCP header type " + value(m, "header-type", "");
     else if (type.equals("vmess") && !value(m, "client-fingerprint", "").isEmpty()) reason = "VMess 客户端 TLS 指纹尚未实现";
-    else if (type.equals("vmess") && !value(m, "path", "").isEmpty()) reason = "当前 VMess TCP 模式不接受 path 参数";
+    else if (type.equals("vmess") && !isWebSocket() && !value(m, "path", "").isEmpty()) reason = "当前 VMess TCP 模式不接受 path 参数";
     else if (type.equals("tuic") && (!uuid.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}") || password.isEmpty())) reason = "TUIC v5 UUID 或密码无效";
     else if (type.equals("tuic") && !validTuicALPN(tuicALPN())) reason = "TUIC ALPN 参数无效";
     else if (type.equals("tuic") && !Arrays.asList("cubic","new_reno","bbr").contains(value(m,"congestion-controller","cubic"))) reason = "TUIC 拥塞控制参数不支持";
@@ -57,9 +57,10 @@ public final class Node {
     else if (!Arrays.asList("ss", "ss2022", "trojan", "socks5", "http", "hysteria2", "anytls", "vless", "vmess", "tuic").contains(type))
       reason = "暂未实现 " + type + " 协议";
     else if (m.containsKey("plugin") && !value(m, "plugin", "").isEmpty()) reason = "暂不支持插件传输";
-    else if (!Arrays.asList("tcp", "").contains(value(m, "network", "tcp")))
+    else if (isWebSocket() && !validWebSocket()) reason = "WebSocket 参数无效或包含未支持的头部/早期数据";
+    else if (!isWebSocket() && !Arrays.asList("tcp", "").contains(value(m, "network", "tcp")))
       reason = "暂不支持 " + value(m, "network", "") + " 传输";
-    else if (m.containsKey("reality-opts") || m.containsKey("ws-opts"))
+    else if (m.containsKey("reality-opts") || (!isWebSocket() && m.containsKey("ws-opts")))
       reason = "暂不支持 Reality / WebSocket";
     else if (type.equals("ss")
         && !Arrays.asList("aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305").contains(cipher))
@@ -99,6 +100,32 @@ public final class Node {
     String setting = value(source, "tls", "false");
     return type.equals("trojan") || type.equals("anytls") || type.equals("vless")
         || Boolean.parseBoolean(setting) || (type.equals("vmess") && setting.equalsIgnoreCase("tls"));
+  }
+
+  public boolean isWebSocket() {
+    return (type.equals("vmess") || type.equals("vless")) && value(source,"network","tcp").equals("ws");
+  }
+  private Map<?,?> wsOptions() {
+    Object options=source.get("ws-opts");return options instanceof Map ? (Map<?,?>)options : Collections.emptyMap();
+  }
+  public String websocketPath() { return value(wsOptions(),"path",value(source,"path","/")); }
+  public String websocketHost() {
+    Object headers=wsOptions().get("headers");
+    if(headers instanceof Map) for(Map.Entry<?,?> e:((Map<?,?>)headers).entrySet())
+      if(String.valueOf(e.getKey()).equalsIgnoreCase("host")) return String.valueOf(e.getValue());
+    String configured=value(source,"ws-host","");
+    return configured.isEmpty() ? (host.contains(":") ? "["+host+"]" : host)+":"+port : configured;
+  }
+  private boolean validWebSocket() {
+    if(source.containsKey("ws-opts") && !(source.get("ws-opts") instanceof Map)) return false;
+    for(Object key:wsOptions().keySet()) if(!Arrays.asList("path","headers").contains(String.valueOf(key))) return false;
+    Object headers=wsOptions().get("headers");
+    if(headers!=null && !(headers instanceof Map)) return false;
+    if(headers instanceof Map) for(Object key:((Map<?,?>)headers).keySet()) if(!String.valueOf(key).equalsIgnoreCase("host")) return false;
+    String path=websocketPath(),hostHeader=websocketHost();
+    return path.startsWith("/") && !path.contains("\r") && !path.contains("\n") && !path.contains("#")
+        && !hostHeader.isEmpty() && !hostHeader.contains("\r") && !hostHeader.contains("\n")
+        && !path.matches(".*[?&]ed=[1-9][0-9]*.*");
   }
 
   private static boolean validTuicALPN(String protocols) {

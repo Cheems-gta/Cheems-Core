@@ -131,6 +131,8 @@ jobs:
           grep -Eq 'startVMessWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, long, boolean, long, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startShadowsocks2022WithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startTUICWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, boolean, long, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVLESSWebSocketWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, long, java.lang.String, boolean, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
+          grep -Eq 'startVMessWebSocketWithNetwork\(java.lang.String, long, java.lang.String, java.lang.String, java.lang.String, long, boolean, long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, go.mobilebridge.Network\)' /tmp/cheems-native-api.txt
           grep -Eq 'startTunnel\(long\)' /tmp/cheems-native-api.txt
           grep -Eq 'stopTunnel\(\)' /tmp/cheems-native-api.txt
           grep -Eq 'isRunning\(\)' /tmp/cheems-native-api.txt

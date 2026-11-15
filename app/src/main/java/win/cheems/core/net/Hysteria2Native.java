@@ -46,6 +46,8 @@ public final class Hysteria2Native {
           String.class, long.class, String.class, network);
       binding().getMethod("startTUICWithNetwork", String.class, long.class, String.class, String.class,
           String.class, String.class, String.class, boolean.class, long.class, String.class, String.class, network);
+      binding().getMethod("startVLESSWebSocketWithNetwork", String.class, long.class, String.class, String.class, long.class, String.class, boolean.class, String.class, String.class, String.class, String.class, network);
+      binding().getMethod("startVMessWebSocketWithNetwork", String.class, long.class, String.class, String.class, String.class, long.class, boolean.class, long.class, String.class, String.class, String.class, String.class, network);
       binding().getMethod("startTunnel", long.class);
       binding().getMethod("stopTunnel");
       return true;
@@ -93,6 +95,12 @@ public final class Hysteria2Native {
             String.class, String.class, long.class, String.class, networkType);
         start.invoke(null, node.host, (long) node.port, node.username, node.password,
             (long) localPort, token, network);
+      } else if (vmess && node.isWebSocket()) {
+        Method start=binding().getMethod("startVMessWebSocketWithNetwork", String.class, long.class, String.class, String.class, String.class, long.class, boolean.class, long.class, String.class, String.class, String.class, String.class, networkType);
+        start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,node.cipher,Long.parseLong(Node.value(node.source,"alterId","0")),node.tls(),(long)localPort,token,platformAndCustomCAPEM,node.websocketPath(),node.websocketHost(),network);
+      } else if (vless && node.isWebSocket()) {
+        Method start=binding().getMethod("startVLESSWebSocketWithNetwork", String.class, long.class, String.class, String.class, long.class, String.class, boolean.class, String.class, String.class, String.class, String.class, networkType);
+        start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,(long)localPort,token,allowUnverifiedTLS,platformAndCustomCAPEM,node.certificateSHA256(),node.websocketPath(),node.websocketHost(),network);
       } else if (vmess) {
         Method start = binding().getMethod("startVMessWithNetwork", String.class, long.class,
             String.class, String.class, String.class, long.class, boolean.class, long.class,

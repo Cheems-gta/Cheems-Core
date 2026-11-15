@@ -301,6 +301,14 @@ func StartAnyTLSWithNetwork(host string, port int, sni string, password string, 
 
 // StartVLESSWithNetwork starts the explicitly supported VLESS TCP+TLS adapter.
 func StartVLESSWithNetwork(host string, port int, sni string, userUUID string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, network Network) error {
+	return startVLESS(host, port, sni, userUUID, localPort, localSecret, allowUnverifiedTLS, customCAPEM, certificateSHA256, network, nil)
+}
+
+func StartVLESSWebSocketWithNetwork(host string, port int, sni string, userUUID string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, path string, websocketHost string, network Network) error {
+	return startVLESS(host, port, sni, userUUID, localPort, localSecret, allowUnverifiedTLS, customCAPEM, certificateSHA256, network, &quictransport.WebSocketConfig{Path: path, Host: websocketHost})
+}
+
+func startVLESS(host string, port int, sni string, userUUID string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, network Network, websocket *quictransport.WebSocketConfig) error {
 	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
 		return errors.New("invalid server or local port")
 	}
@@ -317,7 +325,8 @@ func StartVLESSWithNetwork(host string, port int, sni string, userUUID string, l
 	mu.Unlock()
 
 	client, err := quictransport.NewVLESSClient(quictransport.VLESSConfig{
-		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
+		WebSocket: websocket,
+		Address:   net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
 		UUID: userUUID, Network: network, TrustedCAPEM: customCAPEM,
 		CertificateSHA256: certificateSHA256, AllowUnverifiedTLS: allowUnverifiedTLS,
 	})
@@ -377,6 +386,14 @@ func StartVLESSWithNetwork(host string, port int, sni string, userUUID string, l
 // StartVMessWithNetwork starts the supported VMess TCP adapter with optional
 // verified TLS. The importer rejects non-TCP transports and unsupported TLS options.
 func StartVMessWithNetwork(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, network Network) error {
+	return startVMess(host, port, sni, userUUID, security, alterID, tlsEnabled, localPort, localSecret, customCAPEM, network, nil)
+}
+
+func StartVMessWebSocketWithNetwork(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, path string, websocketHost string, network Network) error {
+	return startVMess(host, port, sni, userUUID, security, alterID, tlsEnabled, localPort, localSecret, customCAPEM, network, &quictransport.WebSocketConfig{Path: path, Host: websocketHost})
+}
+
+func startVMess(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, network Network, websocket *quictransport.WebSocketConfig) error {
 	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
 		return errors.New("invalid server or local port")
 	}
@@ -393,7 +410,8 @@ func StartVMessWithNetwork(host string, port int, sni string, userUUID string, s
 	mu.Unlock()
 
 	client, err := quictransport.NewVMessClient(quictransport.VMessConfig{
-		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
+		WebSocket: websocket,
+		Address:   net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
 		UserID: userUUID, Security: security, AlterID: alterID, TLS: tlsEnabled,
 		Network: network, TrustedCAPEM: customCAPEM,
 	})
