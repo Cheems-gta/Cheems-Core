@@ -98,19 +98,24 @@ public final class MainActivity extends Activity {
     imports.addView(autoTls);
     imports.addView(label("开启后，订阅明确要求跳过证书验证的节点将不再逐次弹窗。可能遭遇服务器冒充；其他节点仍严格验证。", 12, muted));
     autoTls.setOnCheckedChangeListener((buttonView, checked) -> {
+      boolean saved = getPreferences(0).getBoolean(autoTlsKey, false);
+      if (checked == saved) return;
       if (!checked) {
         getPreferences(0).edit().putBoolean(autoTlsKey, false).apply();
         return;
       }
+      // Restore the persisted state without invoking another confirmation dialog.
+      autoTls.setOnCheckedChangeListener(null);
       autoTls.setChecked(false);
+      autoTls.setOnCheckedChangeListener((view, value) -> {
+        getPreferences(0).edit().putBoolean(autoTlsKey, value).apply();
+      });
       new AlertDialog.Builder(this)
           .setTitle("确认自动遵循订阅 TLS 设置")
-          .setMessage("仅当订阅明确标记 skip-cert-verify 时，自动跳过服务器证书身份验证。连接仍使用 TLS 加密，但无法确认服务器身份，可能被冒充。不会对其他节点关闭验证。")
+          .setMessage("仅当订阅明确标记 skip-cert-verify 时，自动跳过服务器证书身份验证。连接仍使用 TLS 加密，但无法确认服务器身份，可能被冒充。")
           .setNegativeButton("取消", null)
-          .setPositiveButton("理解风险，启用", (dialog, which) -> {
-            getPreferences(0).edit().putBoolean(autoTlsKey, true).apply();
-            autoTls.setChecked(true);
-          }).show();
+          .setPositiveButton("理解风险，启用", (dialog, which) -> autoTls.setChecked(true))
+          .show();
     });
     LinearLayout actions = card(root);
     actions.addView(label("02  本地代理", 17, ink));
