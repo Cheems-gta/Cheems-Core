@@ -82,8 +82,11 @@ public final class LocalProxyProbe {
         output.flush();
         String response = readStatus(input);
         int code = statusCode(response);
-        if (code < 200 || code >= 400)
-          throw new IOException("阶段 3：上游 HTTP 返回 " + code);
+        // A valid upstream HTTP response, including 4xx or 5xx, proves
+        // bidirectional TCP forwarding. This probe is a transport check,
+        // not a website availability / application-success assertion.
+        if (code < 100 || code > 599)
+          throw new IOException("阶段 3：上游返回无效 HTTP 状态 " + code);
         return new Result((System.nanoTime() - start) / 1000000, response);
       } catch (IOException e) {
         if (e.getMessage() != null && e.getMessage().startsWith("阶段 3：")) throw e;
