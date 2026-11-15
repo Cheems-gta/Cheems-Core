@@ -42,7 +42,11 @@ public final class Node {
     else if (type.equals("vmess") && !value(m, "client-fingerprint", "").isEmpty()) reason = "VMess 客户端 TLS 指纹尚未实现";
     else if (type.equals("vmess") && !value(m, "path", "").isEmpty()) reason = "当前 VMess TCP 模式不接受 path 参数";
     else if (type.equals("tuic") && (!uuid.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}") || password.isEmpty())) reason = "TUIC v5 UUID 或密码无效";
-    else if (type.equals("tuic")) reason = "TUIC 参数已保留，Android VPN 启动接口尚未接入";
+    else if (type.equals("tuic") && !validTuicALPN(tuicALPN())) reason = "TUIC ALPN 参数无效";
+    else if (type.equals("tuic") && !Arrays.asList("cubic","new_reno","bbr").contains(value(m,"congestion-controller","cubic"))) reason = "TUIC 拥塞控制参数不支持";
+    else if (type.equals("tuic") && !Arrays.asList("native","quic").contains(value(m,"udp-relay-mode","native"))) reason = "TUIC UDP relay mode 不支持";
+    else if (type.equals("tuic") && (Boolean.parseBoolean(value(m,"reduce-rtt","false")) || Boolean.parseBoolean(value(m,"zero-rtt","false")) || Boolean.parseBoolean(value(m,"disable-sni","false")))) reason = "TUIC 0-RTT / 禁用 SNI 尚未支持";
+    else if (type.equals("tuic") && (m.containsKey("tuic-unsupported-option") || m.containsKey("token") || m.containsKey("pinSHA256") || m.containsKey("pin-sha256") || m.containsKey("client-fingerprint"))) reason = "TUIC 含有未支持的选项";
     else if (type.equals("ss2022") && !validSS2022Key(cipher, password)) reason = "Shadowsocks 2022 PSK 格式或长度无效";
     else if (type.equals("hysteria2") && (!value(m, "obfs", "").isEmpty() || !value(m, "obfs-password", "").isEmpty()))
       reason = "当前独立内核尚不支持 Hysteria 2 混淆（Salamander）";
@@ -50,7 +54,7 @@ public final class Node {
       reason = "当前独立内核尚不支持 Hysteria 2 端口跳跃";
     else if (type.equals("anytls") && !value(m, "client-fingerprint", "").isEmpty())
       reason = "AnyTLS 客户端 TLS 指纹尚未实现";
-    else if (!Arrays.asList("ss", "ss2022", "trojan", "socks5", "http", "hysteria2", "anytls", "vless", "vmess").contains(type))
+    else if (!Arrays.asList("ss", "ss2022", "trojan", "socks5", "http", "hysteria2", "anytls", "vless", "vmess", "tuic").contains(type))
       reason = "暂未实现 " + type + " 协议";
     else if (m.containsKey("plugin") && !value(m, "plugin", "").isEmpty()) reason = "暂不支持插件传输";
     else if (!Arrays.asList("tcp", "").contains(value(m, "network", "tcp")))
@@ -75,7 +79,7 @@ public final class Node {
 
   /** An inline PEM CA imported in the subscription (never a filesystem path). */
   public String trustedCAPEM() {
-    if (!type.equals("hysteria2") && !type.equals("anytls") && !type.equals("vless") && !(type.equals("vmess") && tls())) return "";
+    if (!type.equals("hysteria2") && !type.equals("anytls") && !type.equals("vless") && !type.equals("tuic") && !(type.equals("vmess") && tls())) return "";
     String pem = value(source, "ca-str", value(source, "ca", ""));
     return pem.contains("-----BEGIN CERTIFICATE-----") ? pem : "";
   }
@@ -95,6 +99,24 @@ public final class Node {
     String setting = value(source, "tls", "false");
     return type.equals("trojan") || type.equals("anytls") || type.equals("vless")
         || Boolean.parseBoolean(setting) || (type.equals("vmess") && setting.equalsIgnoreCase("tls"));
+  }
+
+  private static boolean validTuicALPN(String protocols) {
+    for (String protocol : protocols.split(",", -1)) {
+      if (protocol.isEmpty() || protocol.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 255
+          || protocol.contains("\r") || protocol.contains("\n")) return false;
+    }
+    return true;
+  }
+
+  public String tuicALPN() {
+    Object raw = source.get("alpn");
+    if (raw instanceof List) {
+      List<String> protocols = new ArrayList<>();
+      for (Object entry : (List<?>) raw) protocols.add(String.valueOf(entry));
+      return String.join(",", protocols);
+    }
+    return value(source, "alpn", "h3");
   }
 
   private static boolean validAlterId(String value) {

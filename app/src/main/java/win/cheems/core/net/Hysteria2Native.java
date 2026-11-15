@@ -44,6 +44,8 @@ public final class Hysteria2Native {
           String.class, long.class, boolean.class, long.class, String.class, String.class, network);
       binding().getMethod("startShadowsocks2022WithNetwork", String.class, long.class, String.class,
           String.class, long.class, String.class, network);
+      binding().getMethod("startTUICWithNetwork", String.class, long.class, String.class, String.class,
+          String.class, String.class, String.class, boolean.class, long.class, String.class, String.class, network);
       binding().getMethod("startTunnel", long.class);
       binding().getMethod("stopTunnel");
       return true;
@@ -57,10 +59,11 @@ public final class Hysteria2Native {
     boolean anytls = "anytls".equals(node.type);
     boolean vless = "vless".equals(node.type);
     boolean vmess = "vmess".equals(node.type) && isPackaged();
+    boolean tuic = "tuic".equals(node.type) && isPackaged();
     boolean ss2022 = "ss2022".equals(node.type) && isPackaged();
     boolean socks5 = "socks5".equals(node.type) && isPackaged();
-    if (!hy2 && !anytls && !vless && !vmess && !ss2022 && !socks5) throw new IllegalArgumentException("Native node protocol required");
-    if (((vless || vmess) && node.uuid.isEmpty()) || (!vless && !vmess && !socks5 && node.password.isEmpty())) throw new IllegalArgumentException("Missing node credentials");
+    if (!hy2 && !anytls && !vless && !vmess && !ss2022 && !tuic && !socks5) throw new IllegalArgumentException("Native node protocol required");
+    if (((vless || vmess || tuic) && node.uuid.isEmpty()) || (!vless && !vmess && !socks5 && node.password.isEmpty())) throw new IllegalArgumentException("Missing node credentials");
     if (localPort < 1 || localPort > 65535) throw new IllegalArgumentException("Invalid local port");
     if (allowUnverifiedTLS && !node.hasInsecureTlsFlag())
       throw new IllegalArgumentException("Unverified TLS requires an explicit insecure provider flag");
@@ -96,6 +99,14 @@ public final class Hysteria2Native {
             String.class, String.class, networkType);
         start.invoke(null, node.host, (long) node.port, node.sni, node.uuid, node.cipher,
             Long.parseLong(Node.value(node.source, "alterId", "0")), node.tls(),
+            (long) localPort, token, platformAndCustomCAPEM, network);
+      } else if (tuic) {
+        Method start = binding().getMethod("startTUICWithNetwork", String.class, long.class, String.class,
+            String.class, String.class, String.class, String.class, boolean.class, long.class,
+            String.class, String.class, networkType);
+        start.invoke(null, node.host, (long) node.port, node.sni, node.uuid, node.password,
+            Node.value(node.source, "congestion-controller", "cubic"), node.tuicALPN(),
+            "quic".equals(Node.value(node.source, "udp-relay-mode", "native")),
             (long) localPort, token, platformAndCustomCAPEM, network);
       } else if (ss2022) {
         Method start = binding().getMethod("startShadowsocks2022WithNetwork", String.class, long.class,

@@ -137,7 +137,7 @@ public final class MainActivity extends Activity {
       message("已复制本次会话的代理用户名和密码。请仅在你信任的应用中配置代理。");
     });
     actions.addView(
-        label("HY2、AnyTLS、VLESS、VMess 与 SS2022 可建立实验性全局 VPN。VMess UDP 需节点支持；SS2022 UDP 为实验功能。WebSocket、gRPC 尚未接入。", 13, muted));
+        label("HY2、AnyTLS、VLESS、VMess、SS2022 与 TUIC v5 可建立实验性全局 VPN。VMess UDP 需节点支持；SS2022 UDP 为实验功能。WebSocket、gRPC 尚未接入。", 13, muted));
     LinearLayout events = card(root);
     events.addView(label("03  运行记录", 17, ink));
     logs = label("等待导入节点", 12, muted);
@@ -344,7 +344,7 @@ public final class MainActivity extends Activity {
   }
 
   private static boolean nativeProtocol(Node n) {
-    return "hysteria2".equals(n.type) || "anytls".equals(n.type) || "vless".equals(n.type) || "vmess".equals(n.type) || "ss2022".equals(n.type)
+    return "hysteria2".equals(n.type) || "anytls".equals(n.type) || "vless".equals(n.type) || "vmess".equals(n.type) || "ss2022".equals(n.type) || "tuic".equals(n.type)
         || ("socks5".equals(n.type) && Hysteria2Native.isPackaged());
   }
 

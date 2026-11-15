@@ -76,7 +76,8 @@ public final class Subscription {
         String[] kv = part.split("=", 2);
         String key = urlDecode(kv[0]), value = kv.length == 2 ? urlDecode(kv[1]) : "";
         // Preserve every option; later validation must explicitly reject unsupported values.
-        m.put(key, value);
+        if (!Arrays.asList("sni","peer","alpn","congestion_control","udp_relay_mode").contains(key)) m.put("tuic-unsupported-option", key);
+        else m.put(key, value);
         if (key.equals("sni") || key.equals("peer")) m.put("sni", value);
         if (key.equals("congestion_control")) m.put("congestion-controller", value);
         if (key.equals("udp_relay_mode")) m.put("udp-relay-mode", value);

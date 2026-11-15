@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,6 +24,7 @@ var (
 	vlessClient  *quictransport.VLESSClient
 	vmessClient  *quictransport.VMessClient
 	ss2022Client *quictransport.Shadowsocks2022Client
+	tuicClient   *quictransport.TUICClient
 	socks5Client *quictransport.SOCKS5Client
 	activeTCP    tcpBackend
 	activeUDP    udpBackend
@@ -74,6 +76,12 @@ type shadowsocks2022UDPBackend struct {
 }
 
 func (b shadowsocks2022UDPBackend) OpenUDPAssociation(string) (udpAssociation, error) {
+	return b.client.OpenUDPAssociation()
+}
+
+type tuicUDPBackend struct{ client *quictransport.TUICClient }
+
+func (b tuicUDPBackend) OpenUDPAssociation(string) (udpAssociation, error) {
 	return b.client.OpenUDPAssociation()
 }
 
@@ -155,6 +163,7 @@ func start(host string, port int, sni string, password string, localPort int, lo
 	vlessClient = nil
 	vmessClient = nil
 	ss2022Client = nil
+	tuicClient = nil
 	socks5Client = nil
 	activeTCP = newSession
 	if newSession.UDPEnabled {
@@ -259,6 +268,7 @@ func StartAnyTLSWithNetwork(host string, port int, sni string, password string, 
 	vlessClient = nil
 	vmessClient = nil
 	ss2022Client = nil
+	tuicClient = nil
 	socks5Client = nil
 	anyTLSClient = client
 	activeTCP = client
@@ -335,6 +345,7 @@ func StartVLESSWithNetwork(host string, port int, sni string, userUUID string, l
 	vlessClient = client
 	vmessClient = nil
 	ss2022Client = nil
+	tuicClient = nil
 	socks5Client = nil
 	activeTCP = client
 	activeUDP = nil
@@ -412,6 +423,7 @@ func StartVMessWithNetwork(host string, port int, sni string, userUUID string, s
 	vlessClient = nil
 	vmessClient = client
 	ss2022Client = nil
+	tuicClient = nil
 	socks5Client = nil
 	activeTCP = client
 	activeUDP = vmessUDPBackend{client: client}
@@ -427,6 +439,7 @@ func StartVMessWithNetwork(host string, port int, sni string, userUUID string, s
 				server = nil
 				vmessClient = nil
 				ss2022Client = nil
+				tuicClient = nil
 				activeTCP = nil
 				activeUDP = nil
 				running.Store(false)
@@ -502,10 +515,86 @@ func StartShadowsocks2022WithNetwork(host string, port int, method string, psk s
 			if server == newServer {
 				server = nil
 				ss2022Client = nil
+				tuicClient = nil
 				activeTCP = nil
 				activeUDP = nil
 				running.Store(false)
 				lastError = "Shadowsocks 2022 local SOCKS5 listener stopped unexpectedly"
+				mu.Unlock()
+				_ = client.Close()
+				return
+			}
+			mu.Unlock()
+		}
+	}()
+	return nil
+}
+
+// StartTUICWithNetwork starts the experimental TUIC v5 TCP/UDP adapter.
+func StartTUICWithNetwork(host string, port int, sni string, userUUID string, password string, congestion string, alpn string, udpStream bool, localPort int, localSecret string, customCAPEM string, network Network) error {
+	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
+		return errors.New("invalid server or local port")
+	}
+	if len(localSecret) < 24 || len(localSecret) > 255 || network == nil {
+		return errors.New("local secret and protected network callback required")
+	}
+	mu.Lock()
+	if starting || server != nil {
+		mu.Unlock()
+		return errors.New("a native proxy is already starting or running")
+	}
+	starting = true
+	startGeneration := generation
+	mu.Unlock()
+
+	client, err := quictransport.NewTUICClient(quictransport.TUICConfig{
+		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni, UUID: userUUID, Password: password, CongestionControl: congestion, ALPN: strings.Split(alpn, ","), UDPStream: udpStream, TrustedCAPEM: customCAPEM, Network: network,
+	})
+	if err != nil {
+		recordFailure(startGeneration, err)
+		return err
+	}
+	newServer, err := quictransport.ListenSOCKS5WithDialer(fmt.Sprintf("127.0.0.1:%d", localPort), localSecret, client.OpenTCP)
+	if err != nil {
+		_ = client.Close()
+		recordFailure(startGeneration, err)
+		return err
+	}
+	mu.Lock()
+	if generation == startGeneration {
+		starting = false
+		startCancel = nil
+	}
+	if generation != startGeneration {
+		mu.Unlock()
+		_ = newServer.Close()
+		_ = client.Close()
+		return errors.New("TUIC startup canceled")
+	}
+	session = nil
+	anyTLSClient = nil
+	vlessClient = nil
+	vmessClient = nil
+	tuicClient = client
+	ss2022Client = nil
+	socks5Client = nil
+	activeTCP = client
+	activeUDP = tuicUDPBackend{client: client}
+	server = newServer
+	startNetwork = network
+	running.Store(true)
+	lastError = ""
+	mu.Unlock()
+	go func() {
+		if serveErr := newServer.Serve(); serveErr != nil {
+			mu.Lock()
+			if server == newServer {
+				server = nil
+				tuicClient = nil
+				activeTCP = nil
+				activeUDP = nil
+				running.Store(false)
+				lastError = "TUIC local SOCKS5 listener stopped unexpectedly"
 				mu.Unlock()
 				_ = client.Close()
 				return
@@ -607,6 +696,7 @@ func Stop() {
 	oldVLESS := vlessClient
 	oldVMess := vmessClient
 	oldSS2022 := ss2022Client
+	oldTUIC := tuicClient
 	oldSOCKS5 := socks5Client
 	server = nil
 	session = nil
@@ -614,6 +704,7 @@ func Stop() {
 	vlessClient = nil
 	vmessClient = nil
 	ss2022Client = nil
+	tuicClient = nil
 	socks5Client = nil
 	activeTCP = nil
 	activeUDP = nil
@@ -637,6 +728,9 @@ func Stop() {
 	}
 	if oldVMess != nil {
 		_ = oldVMess.Close()
+	}
+	if oldTUIC != nil {
+		_ = oldTUIC.Close()
 	}
 	if oldSS2022 != nil {
 		_ = oldSS2022.Close()

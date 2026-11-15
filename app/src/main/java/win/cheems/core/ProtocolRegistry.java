@@ -28,7 +28,7 @@ public final class ProtocolRegistry {
         new Capability("VLESS TCP+TLS (experimental)", Status.EXPERIMENTAL),
         new Capability("VMess TCP/TLS + UDP (experimental)", Status.EXPERIMENTAL),
         new Capability("Hysteria2 (global VPN alpha)", Status.EXPERIMENTAL),
-        new Capability("TUIC", Status.PLANNED),
+        new Capability("TUIC v5 TCP/UDP (experimental)", Status.EXPERIMENTAL),
         new Capability("AnyTLS (TCP alpha)", Status.EXPERIMENTAL),
         new Capability("WireGuard", Status.PLANNED),
         new Capability("SSH Tunnel", Status.PLANNED),

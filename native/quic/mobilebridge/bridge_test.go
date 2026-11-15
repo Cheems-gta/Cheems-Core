@@ -76,3 +76,31 @@ func TestStopCancelsInProgressQUICHandshake(t *testing.T) {
 		t.Fatal("canceled session reported running")
 	}
 }
+
+func TestTUICBackendStartStop(t *testing.T) {
+	Stop()
+	defer Stop()
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+	network := &cancelNetwork{protected: make(chan struct{}, 1)}
+	if err = StartTUICWithNetwork("127.0.0.1", 443, "localhost", "d342d11e-d424-4583-b36b-524ab1f0afa4", "password", "cubic", "h3", false, port, strings.Repeat("s", 32), "", network); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	registered := activeTCP != nil && activeUDP != nil && tuicClient != nil
+	mu.Unlock()
+	if !registered {
+		t.Fatal("TUIC TCP and UDP backend registration missing")
+	}
+	Stop()
+	mu.Lock()
+	cleared := activeTCP == nil && activeUDP == nil && tuicClient == nil
+	mu.Unlock()
+	if !cleared || IsRunning() {
+		t.Fatal("TUIC backend survived stop")
+	}
+}

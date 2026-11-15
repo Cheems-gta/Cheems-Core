@@ -78,3 +78,8 @@ The SS2022 native TUN adapter now routes UDP through protected connected sockets
 ## TUIC v5 native checkpoint
 
 An experimental native TUIC v5 adapter uses `sing-quic` v0.7.1 with protected physical-network sockets, strict TLS, TCP, UDP datagrams and UDP stream relay. Local reference-service round trips pass for TCP and both UDP modes; wrong passwords and unknown TLS roots are rejected. Existing transport race tests and vet pass after updating upstream quic-go to v0.59.0 to resolve QPACK API conflicts. This adds a second QUIC implementation; APK size and device resource use remain unmeasured. Android import/start/TUN registration for TUIC is not implemented yet, so TUIC remains unavailable in the app. Provider/device interoperability, license/source distribution and packaged native binding checks remain required. The GPL-3.0-or-later sing-quic dependency must be included in release source/license compliance. No APK is delivered.
+
+
+## TUIC Android integration checkpoint
+
+TUIC v5 share-link/YAML import, strict option validation, gomobile startup and native TCP/UDP TUN backend registration are implemented experimentally. Both native UDP datagrams and QUIC stream relay modes are selectable through the imported configuration. DNS uses the same selected backend with the existing same-node TCP fallback. Credentials remain local; TLS chain/hostname checks stay enabled. 0-RTT, disabled SNI, certificate pins and client TLS fingerprint emulation are unsupported. A local bridge lifecycle regression checks registration and cleanup; Go race/vet checks pass. Android binding/Java checks run in source-only CI. Provider interoperability, physical-device traffic, background stability and network switching remain unverified; no APK is delivered.
