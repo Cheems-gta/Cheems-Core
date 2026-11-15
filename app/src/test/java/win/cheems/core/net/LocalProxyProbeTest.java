@@ -52,6 +52,32 @@ public final class LocalProxyProbeTest {
     }
   }
 
+  @Test public void remoteHttp403StillProvesBidirectionalTransport() throws Exception {
+    try (ServerSocket server = loopback()) {
+      CompletableFuture<Void> peer = CompletableFuture.runAsync(() -> {
+        try (Socket socket = server.accept()) {
+          socket.setSoTimeout(3000);
+          InputStream in = socket.getInputStream();
+          OutputStream out = socket.getOutputStream();
+          headers(in); // Authenticated HTTP CONNECT.
+          out.write("HTTP/1.1 200 Connection Established\r\n\r\n"
+              .getBytes(StandardCharsets.US_ASCII));
+          out.flush();
+          headers(in); // GET sent through the established tunnel.
+          out.write("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n"
+              .getBytes(StandardCharsets.US_ASCII));
+          out.flush();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      });
+      LocalProxyProbe.Result result =
+          LocalProxyProbe.check(PASS, server.getLocalPort(), "example.com", 80);
+      assertEquals("HTTP/1.1 403 Forbidden", result.responseStatus);
+      peer.get(5, TimeUnit.SECONDS);
+    }
+  }
+
   @Test public void distinguishesRejectedProxyPassword() throws Exception {
     assertReportedStage("HTTP/1.1 407 Proxy Authentication Required\r\n\r\n",
         "阶段 2", "407");
