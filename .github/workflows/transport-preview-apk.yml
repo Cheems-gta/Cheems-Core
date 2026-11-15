@@ -164,29 +164,29 @@ jobs:
           p=Path("app/build.gradle")
           s=p.read_text()
           s=s.replace('dependencies {', 'dependencies {\n implementation files("libs/cheems-quic.aar")', 1)
-          s=s.replace("versionCode 2; versionName '0.2.0'", "versionCode 100; versionName '0.4.0-transport-preview'")
+          s=s.replace("versionCode 2; versionName '0.2.0'", "versionCode 101; versionName '0.4.1-transport-preview'")
           p.write_text(s)
           PY
           gradle :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --stacktrace
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | grep "versionName='0.4.0-transport-preview'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | grep "versionName='0.4.1-transport-preview'"
           unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep -Fx "lib/arm64-v8a/libgojni.so"
           unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep -Fx "lib/armeabi-v7a/libgojni.so"
       - name: Prepare checksums and installable artifact
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Cheems-Core-v0.4.0-transport-preview.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Cheems-Core-v0.4.1-transport-preview.apk
           cd dist
-          sha256sum Cheems-Core-v0.4.0-transport-preview.apk > SHA256SUMS.txt
+          sha256sum Cheems-Core-v0.4.1-transport-preview.apk > SHA256SUMS.txt
       - name: Prepare corresponding source and test notes
         run: |
           cp docs/TRANSPORT_PREVIEW_TEST.md dist/TEST-NOTES.md
           printf '%s\n' "$GITHUB_SHA" > SOURCE_COMMIT.txt
           go version > GO_VERSION.txt
           (cd native/quic && go mod vendor && go list -m > MODULE.txt)
-          tar --exclude=.git --exclude=.gradle --exclude=dist --exclude='*/build' --exclude='*.aar' --exclude='*.apk' -czf dist/Cheems-Core-v0.4.0-transport-preview-source.tar.gz .
+          tar --exclude=.git --exclude=.gradle --exclude=dist --exclude='*/build' --exclude='*.aar' --exclude='*.apk' -czf dist/Cheems-Core-v0.4.1-transport-preview-source.tar.gz .
           cd dist
-          sha256sum Cheems-Core-v0.4.0-transport-preview-source.tar.gz >> SHA256SUMS.txt
+          sha256sum Cheems-Core-v0.4.1-transport-preview-source.tar.gz >> SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: cheems-transport-preview-apk

@@ -5,6 +5,7 @@ on:
     paths:
       - 'native/quic/**'
       - 'app/**'
+      - 'gradle.properties'
       - '.github/workflows/android-vpn-checks.yml'
   pull_request:
     branches: [compatibility]
