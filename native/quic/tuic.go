@@ -21,6 +21,7 @@ type TUICConfig struct {
 	Address, ServerName, UUID, Password, TrustedCAPEM, CongestionControl string
 	ALPN                                                                 []string
 	UDPStream                                                            bool
+	AllowUnverifiedTLS                                                   bool
 	Network                                                              Network
 }
 type TUICClient struct {
@@ -50,7 +51,7 @@ func NewTUICClient(cfg TUICConfig) (*TUICClient, error) {
 	if len(cfg.ALPN) == 0 {
 		cfg.ALPN = []string{"h3"}
 	}
-	tc := &tls.Config{ServerName: cfg.ServerName, NextProtos: cfg.ALPN, MinVersion: tls.VersionTLS13}
+	tc := &tls.Config{ServerName: cfg.ServerName, NextProtos: cfg.ALPN, MinVersion: tls.VersionTLS13, InsecureSkipVerify: cfg.AllowUnverifiedTLS}
 	if len(cfg.TrustedCAPEM) > 2*1024*1024 {
 		return nil, errors.New("TUIC CA bundle exceeds 2 MiB")
 	}

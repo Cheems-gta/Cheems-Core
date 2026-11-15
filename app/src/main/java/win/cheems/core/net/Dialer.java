@@ -24,6 +24,19 @@ public final class Dialer {
     }
   }
 
+  // Applies only to the proxy-node socket; subscription HTTPS uses platform trust.
+  private static SSLSocketFactory nodeSocketFactory(Node node) throws Exception {
+    if (!Boolean.parseBoolean(Node.value(node.source, "skip-cert-verify", "false")))
+      return (SSLSocketFactory) SSLSocketFactory.getDefault();
+    SSLContext context = SSLContext.getInstance("TLS");
+    context.init(null, new TrustManager[]{new X509TrustManager() {
+      public java.security.cert.X509Certificate[] getAcceptedIssuers() { return new java.security.cert.X509Certificate[0]; }
+      public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) {}
+      public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) {}
+    }}, new java.security.SecureRandom());
+    return context.getSocketFactory();
+  }
+
   public static Tunnel connect(
       Node node, String host, int port, java.util.function.Consumer<Socket> track)
       throws Exception {
@@ -43,10 +56,10 @@ public final class Dialer {
       if (!internalNative && node.tls()) {
         SSLSocket tls =
             (SSLSocket)
-                ((SSLSocketFactory) SSLSocketFactory.getDefault())
+                nodeSocketFactory(node)
                     .createSocket(socket, node.sni, node.port, true);
         SSLParameters params = tls.getSSLParameters();
-        params.setEndpointIdentificationAlgorithm("HTTPS");
+        params.setEndpointIdentificationAlgorithm(Boolean.parseBoolean(Node.value(node.source, "skip-cert-verify", "false")) ? null : "HTTPS");
         tls.setSSLParameters(params);
         tls.startHandshake();
         socket = tls;

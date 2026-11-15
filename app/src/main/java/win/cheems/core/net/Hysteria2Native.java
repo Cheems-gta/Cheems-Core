@@ -34,8 +34,8 @@ public final class Hysteria2Native {
       Class<?> network = Class.forName("go.mobilebridge.Network");
       binding().getMethod("startWithNetwork", String.class, long.class, String.class, String.class,
           long.class, String.class, boolean.class, String.class, String.class, network);
-      binding().getMethod("startAnyTLSWithNetwork", String.class, long.class, String.class, String.class,
-          long.class, String.class, boolean.class, String.class, String.class, network);
+      binding().getMethod("startAnyTLSConfiguredWithNetwork", String.class, long.class, String.class, String.class,
+          long.class, String.class, boolean.class, String.class, String.class, String.class, String.class, network);
       binding().getMethod("startVLESSWithNetwork", String.class, long.class, String.class, String.class,
           long.class, String.class, boolean.class, String.class, String.class, network);
       binding().getMethod("startSOCKS5WithNetwork", String.class, long.class, String.class, String.class,
@@ -51,6 +51,12 @@ public final class Hysteria2Native {
       binding().getMethod("startVMessWebSocketWithNetwork", String.class, long.class, String.class, String.class, String.class, long.class, boolean.class, long.class, String.class, String.class, String.class, String.class, network);
       binding().getMethod("startVMessGRPCWithNetwork", String.class, long.class, String.class, String.class, String.class, long.class, boolean.class, long.class, String.class, String.class, String.class, String.class, network);
       binding().getMethod("startVLESSRealityWithNetwork", String.class, long.class, String.class, String.class, String.class, String.class, String.class, long.class, String.class, network);
+      binding().getMethod("startVMessTLSWithNetwork", String.class, long.class, String.class,
+          String.class, String.class, long.class, boolean.class, long.class, String.class,
+          String.class, boolean.class, String.class, String.class, String.class, network);
+      binding().getMethod("startTUICTLSWithNetwork", String.class, long.class, String.class,
+          String.class, String.class, String.class, String.class, boolean.class, long.class,
+          String.class, String.class, boolean.class, network);
       binding().getMethod("startTunnel", long.class);
       binding().getMethod("stopTunnel");
       return true;
@@ -70,10 +76,8 @@ public final class Hysteria2Native {
     if (!hy2 && !anytls && !vless && !vmess && !ss2022 && !tuic && !socks5) throw new IllegalArgumentException("Native node protocol required");
     if (((vless || vmess || tuic) && node.uuid.isEmpty()) || (!vless && !vmess && !socks5 && node.password.isEmpty())) throw new IllegalArgumentException("Missing node credentials");
     if (localPort < 1 || localPort > 65535) throw new IllegalArgumentException("Invalid local port");
-    if (allowUnverifiedTLS && !node.hasInsecureTlsFlag())
-      throw new IllegalArgumentException("Unverified TLS requires an explicit insecure provider flag");
     String platformAndCustomCAPEM = "";
-    if (!socks5 && !ss2022) {
+    if (!allowUnverifiedTLS && !socks5 && !ss2022 && !node.isReality()) {
       String trustedCAPEM = customCAPEM == null || customCAPEM.isBlank()
           ? node.trustedCAPEM() : customCAPEM;
       if (trustedCAPEM.length() > 64 * 1024)
@@ -101,44 +105,48 @@ public final class Hysteria2Native {
       } else if (vless && node.isReality()) {
         Method start=binding().getMethod("startVLESSRealityWithNetwork", String.class, long.class, String.class, String.class, String.class, String.class, String.class, long.class, String.class, networkType);
         start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,node.realityPublicKey(),node.realityShortID(),node.realityFingerprint(),(long)localPort,token,network);
-      } else if (vmess && node.isGRPC()) {
-        Method start=binding().getMethod("startVMessGRPCWithNetwork", String.class, long.class, String.class, String.class, String.class, long.class, boolean.class, long.class, String.class, String.class, String.class, String.class, networkType);
-        start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,node.cipher,Long.parseLong(Node.value(node.source,"alterId","0")),node.tls(),(long)localPort,token,platformAndCustomCAPEM,node.grpcServiceName(),node.grpcAuthority(),network);
       } else if (vless && node.isGRPC()) {
         Method start=binding().getMethod("startVLESSGRPCWithNetwork", String.class, long.class, String.class, String.class, long.class, String.class, boolean.class, String.class, String.class, String.class, String.class, networkType);
-        start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,(long)localPort,token,allowUnverifiedTLS,platformAndCustomCAPEM,node.certificateSHA256(),node.grpcServiceName(),node.grpcAuthority(),network);
-      } else if (vmess && node.isWebSocket()) {
-        Method start=binding().getMethod("startVMessWebSocketWithNetwork", String.class, long.class, String.class, String.class, String.class, long.class, boolean.class, long.class, String.class, String.class, String.class, String.class, networkType);
-        start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,node.cipher,Long.parseLong(Node.value(node.source,"alterId","0")),node.tls(),(long)localPort,token,platformAndCustomCAPEM,node.websocketPath(),node.websocketHost(),network);
+        start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,(long)localPort,token,allowUnverifiedTLS,platformAndCustomCAPEM,allowUnverifiedTLS ? "" : node.certificateSHA256(),node.grpcServiceName(),node.grpcAuthority(),network);
       } else if (vless && node.isWebSocket()) {
         Method start=binding().getMethod("startVLESSWebSocketWithNetwork", String.class, long.class, String.class, String.class, long.class, String.class, boolean.class, String.class, String.class, String.class, String.class, networkType);
-        start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,(long)localPort,token,allowUnverifiedTLS,platformAndCustomCAPEM,node.certificateSHA256(),node.websocketPath(),node.websocketHost(),network);
+        start.invoke(null,node.host,(long)node.port,node.sni,node.uuid,(long)localPort,token,allowUnverifiedTLS,platformAndCustomCAPEM,allowUnverifiedTLS ? "" : node.certificateSHA256(),node.websocketPath(),node.websocketHost(),network);
       } else if (vmess) {
-        Method start = binding().getMethod("startVMessWithNetwork", String.class, long.class,
+        Method start = binding().getMethod("startVMessTLSWithNetwork", String.class, long.class,
             String.class, String.class, String.class, long.class, boolean.class, long.class,
-            String.class, String.class, networkType);
+            String.class, String.class, boolean.class, String.class, String.class, String.class, networkType);
+        String transport = node.isGRPC() ? "grpc" : node.isWebSocket() ? "ws" : "tcp";
+        String path = node.isGRPC() ? node.grpcServiceName() : node.isWebSocket() ? node.websocketPath() : "";
+        String authority = node.isGRPC() ? node.grpcAuthority() : node.isWebSocket() ? node.websocketHost() : "";
         start.invoke(null, node.host, (long) node.port, node.sni, node.uuid, node.cipher,
             Long.parseLong(Node.value(node.source, "alterId", "0")), node.tls(),
-            (long) localPort, token, platformAndCustomCAPEM, network);
+            (long) localPort, token, platformAndCustomCAPEM, allowUnverifiedTLS, transport, path, authority, network);
       } else if (tuic) {
-        Method start = binding().getMethod("startTUICWithNetwork", String.class, long.class, String.class,
+        Method start = binding().getMethod("startTUICTLSWithNetwork", String.class, long.class, String.class,
             String.class, String.class, String.class, String.class, boolean.class, long.class,
-            String.class, String.class, networkType);
+            String.class, String.class, boolean.class, networkType);
         start.invoke(null, node.host, (long) node.port, node.sni, node.uuid, node.password,
             Node.value(node.source, "congestion-controller", "cubic"), node.tuicALPN(),
             "quic".equals(Node.value(node.source, "udp-relay-mode", "native")),
-            (long) localPort, token, platformAndCustomCAPEM, network);
+            (long) localPort, token, platformAndCustomCAPEM, allowUnverifiedTLS, network);
+      } else if (anytls) {
+        Method start = binding().getMethod("startAnyTLSConfiguredWithNetwork", String.class, long.class,
+            String.class, String.class, long.class, String.class, boolean.class, String.class,
+            String.class, String.class, String.class, networkType);
+        start.invoke(null, node.host, (long) node.port, node.sni, node.password, (long) localPort,
+            token, allowUnverifiedTLS, platformAndCustomCAPEM, allowUnverifiedTLS ? "" : node.certificateSHA256(),
+            node.anyTLSFingerprint(), node.anyTLSALPN(), network);
       } else if (ss2022) {
         Method start = binding().getMethod("startShadowsocks2022WithNetwork", String.class, long.class,
             String.class, String.class, long.class, String.class, networkType);
         start.invoke(null, node.host, (long) node.port, node.cipher, node.password,
             (long) localPort, token, network);
       } else {
-        String methodName = hy2 ? "startWithNetwork" : anytls ? "startAnyTLSWithNetwork" : "startVLESSWithNetwork";
+        String methodName = hy2 ? "startWithNetwork" : "startVLESSWithNetwork";
         Method start = binding().getMethod(methodName, String.class, long.class, String.class,
             String.class, long.class, String.class, boolean.class, String.class, String.class, networkType);
         start.invoke(null, node.host, (long) node.port, node.sni, vless ? node.uuid : node.password,
-            (long) localPort, token, allowUnverifiedTLS, platformAndCustomCAPEM, node.certificateSHA256(),network);
+            (long) localPort, token, allowUnverifiedTLS, platformAndCustomCAPEM, allowUnverifiedTLS ? "" : node.certificateSHA256(),network);
       }
     } catch (ClassNotFoundException e) {
       localToken.compareAndSet(token, null);

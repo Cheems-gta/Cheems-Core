@@ -217,6 +217,11 @@ func start(host string, port int, sni string, password string, localPort int, lo
 // StartAnyTLSWithNetwork creates the AnyTLS client, protected local SOCKS
 // bridge, and TCP backend used by the Android VPN TUN stack.
 func StartAnyTLSWithNetwork(host string, port int, sni string, password string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, network Network) error {
+	return StartAnyTLSConfiguredWithNetwork(host, port, sni, password, localPort, localSecret, allowUnverifiedTLS, customCAPEM, certificateSHA256, "", "", network)
+}
+
+// StartAnyTLSConfiguredWithNetwork applies imported ClientHello and ALPN options.
+func StartAnyTLSConfiguredWithNetwork(host string, port int, sni string, password string, localPort int, localSecret string, allowUnverifiedTLS bool, customCAPEM string, certificateSHA256 string, fingerprint string, alpn string, network Network) error {
 	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
 		return errors.New("invalid server or local port")
 	}
@@ -235,7 +240,12 @@ func StartAnyTLSWithNetwork(host string, port int, sni string, password string, 
 	startGeneration := generation
 	mu.Unlock()
 
+	var protocols []string
+	if alpn != "" {
+		protocols = strings.Split(alpn, ",")
+	}
 	client, err := quictransport.NewAnyTLSClient(clientCtx, quictransport.AnyTLSConfig{
+		Fingerprint: fingerprint, ALPN: protocols,
 		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
 		Password: password, Network: network, TrustedCAPEM: customCAPEM,
 		CertificateSHA256: certificateSHA256, AllowUnverifiedTLS: allowUnverifiedTLS,
@@ -405,7 +415,27 @@ func StartVMessGRPCWithNetwork(host string, port int, sni string, userUUID strin
 	return startVMess(host, port, sni, userUUID, security, alterID, tlsEnabled, localPort, localSecret, customCAPEM, network, nil, &quictransport.GRPCConfig{ServiceName: serviceName, Authority: authority})
 }
 
+// StartVMessTLSWithNetwork carries the node TLS policy for TCP, WebSocket and gRPC.
+func StartVMessTLSWithNetwork(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, allowUnverifiedTLS bool, transport string, path string, authority string, network Network) error {
+	var ws *quictransport.WebSocketConfig
+	var grpc *quictransport.GRPCConfig
+	switch transport {
+	case "", "tcp":
+	case "ws":
+		ws = &quictransport.WebSocketConfig{Path: path, Host: authority}
+	case "grpc":
+		grpc = &quictransport.GRPCConfig{ServiceName: path, Authority: authority}
+	default:
+		return errors.New("unsupported VMess transport")
+	}
+	return startVMessTLS(host, port, sni, userUUID, security, alterID, tlsEnabled, localPort, localSecret, customCAPEM, network, ws, grpc, allowUnverifiedTLS)
+}
+
 func startVMess(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, network Network, websocket *quictransport.WebSocketConfig, grpc *quictransport.GRPCConfig) error {
+	return startVMessTLS(host, port, sni, userUUID, security, alterID, tlsEnabled, localPort, localSecret, customCAPEM, network, websocket, grpc, false)
+}
+
+func startVMessTLS(host string, port int, sni string, userUUID string, security string, alterID int, tlsEnabled bool, localPort int, localSecret string, customCAPEM string, network Network, websocket *quictransport.WebSocketConfig, grpc *quictransport.GRPCConfig, allowUnverifiedTLS bool) error {
 	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
 		return errors.New("invalid server or local port")
 	}
@@ -423,7 +453,8 @@ func startVMess(host string, port int, sni string, userUUID string, security str
 
 	client, err := quictransport.NewVMessClient(quictransport.VMessConfig{
 		WebSocket: websocket, GRPC: grpc,
-		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
+		AllowUnverifiedTLS: allowUnverifiedTLS,
+		Address:            net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni,
 		UserID: userUUID, Security: security, AlterID: alterID, TLS: tlsEnabled,
 		Network: network, TrustedCAPEM: customCAPEM,
 	})
@@ -562,6 +593,10 @@ func StartShadowsocks2022WithNetwork(host string, port int, method string, psk s
 
 // StartTUICWithNetwork starts the experimental TUIC v5 TCP/UDP adapter.
 func StartTUICWithNetwork(host string, port int, sni string, userUUID string, password string, congestion string, alpn string, udpStream bool, localPort int, localSecret string, customCAPEM string, network Network) error {
+	return StartTUICTLSWithNetwork(host, port, sni, userUUID, password, congestion, alpn, udpStream, localPort, localSecret, customCAPEM, false, network)
+}
+
+func StartTUICTLSWithNetwork(host string, port int, sni string, userUUID string, password string, congestion string, alpn string, udpStream bool, localPort int, localSecret string, customCAPEM string, allowUnverifiedTLS bool, network Network) error {
 	if host == "" || port < 1 || port > 65535 || localPort < 1 || localPort > 65535 {
 		return errors.New("invalid server or local port")
 	}
@@ -578,7 +613,8 @@ func StartTUICWithNetwork(host string, port int, sni string, userUUID string, pa
 	mu.Unlock()
 
 	client, err := quictransport.NewTUICClient(quictransport.TUICConfig{
-		Address: net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni, UUID: userUUID, Password: password, CongestionControl: congestion, ALPN: strings.Split(alpn, ","), UDPStream: udpStream, TrustedCAPEM: customCAPEM, Network: network,
+		AllowUnverifiedTLS: allowUnverifiedTLS,
+		Address:            net.JoinHostPort(host, strconv.Itoa(port)), ServerName: sni, UUID: userUUID, Password: password, CongestionControl: congestion, ALPN: strings.Split(alpn, ","), UDPStream: udpStream, TrustedCAPEM: customCAPEM, Network: network,
 	})
 	if err != nil {
 		recordFailure(startGeneration, err)

@@ -1,35 +1,21 @@
-# Cheems Core 0.4.2 transport preview — 真机测试
+# Cheems Core 0.4.4 AnyTLS compatibility build
 
-这是需要手机验收的测试版，尚未证明 Flybit 实际可用或长期稳定。
+Changes in this APK:
+- AnyTLS imports and uses chrome, firefox, safari, ios, android, edge, 360, qq and random ClientHello presets. Empty/none uses standard TLS. Explicit ALPN and URI fp/client-fingerprint are forwarded.
+- Proxy-node certificate verification is disabled by default at the user's request, without confirmation dialogs. Imported CA/pin settings are omitted from each connection copy; saved subscription data is unchanged. Encryption remains enabled, but server identity is not verified.
+- The same selected policy reaches HY2, AnyTLS, VLESS TLS, VMess TCP/WS/gRPC, TUIC and the Java TLS node dialer. Reality retains its protocol authentication.
+- VPN stack always receives a logger; an optional TUN offload-query failure no longer dereferences a nil logger. The regression test reproduces this with an unprivileged datagram socket and checks descriptor ownership on shutdown.
+- Runtime events persist after app restart, with bounded size and credential/address redaction. Activity recreation no longer resets an active startup as an interrupted process.
 
-支持本批测试的组合：
-- VMess / VLESS：普通 TLS WebSocket，Host + Path，未支持早期数据与任意自定义请求头。
-- VMess / VLESS：TLS gRPC 标准 Tun，需明确服务名称；未支持 TunMulti、压缩与 h2c。
-- VLESS TCP Reality：空 flow，chrome/firefox，X25519 公钥与 short ID。
+Validation:
+- Real local AnyTLS service: TLS handshake, password authentication, concurrent multiplexed streams, session reuse, all listed ClientHello presets and explicit ALPN.
+- Self-signed certificate with a mismatched hostname connects under the selected skip policy. Strict native API calls still reject unknown CA, wrong hostname, wrong pin and wrong password.
+- Native unit/integration tests and Android import, diagnostic persistence, compile, lint and signature checks run before artifact delivery.
 
-不支持 XTLS Vision、Reality WS/gRPC、ML-DSA Reality 认证。配置会明确拒绝这些组合。
-原有 HY2/AnyTLS/TUIC/SS2022/SOCKS5 的实验路径仍保留。
+Limits:
+- No Flybit subscription credential is present in the test environment. These checks do not prove connectivity to a particular Flybit endpoint or on a specific phone/network.
+- AnyTLS carries TCP; DNS uses TCP fallback through the selected node. General AnyTLS UDP/UoT is not implemented.
+- This is a compatibility build, not a claim of all-protocol support or production stability. Existing unsupported transport combinations remain explicitly labelled.
+- Android's system VPN permission is still required.
 
-测试步骤：
-1. 下载并解压构建附件，安装其中的 APK。测试包用调试签名；若旧包签名冲突，先自行备份订阅，再卸载旧包。
-2. 停止其他 VPN，导入你自己有权使用的订阅。不要把订阅地址或节点密码发到公开日志。
-3. 先选一个已有 HY2/AnyTLS 节点验证基本启动，再选本批传输组合分别验证。
-4. 点启动并授权 Android VPN，打开网页，再运行应用内的完整转发检查。
-5. 测试停止后网络恢复，以及 Wi-Fi/移动网络切换。自动重连、后台长期运行仍需验证。
-6. 反馈节点协议/传输类型、失败步骤和脱敏后的错误日志。无需提供密码、公钥以外的认证材料或订阅地址。
-
-源码归档与 SHA256 校验文件随 APK 同时提供。源码 CI 和签名检查不等于真机通过。
-
-## 0.4.1 证书选项弹窗修复
-
-说明文字和连接按钮改为同一个可滚动布局，避免 Android 原生对话框隐藏选项列表。应显示严格验证、粘贴可信 CA 和本次跳过验证三个独立按钮；跳过验证仍需再次确认。Android 9/15 的 UI 回归检查覆盖按钮可见性与点击分派。
-
-## 0.4.2 DNS 与状态修复
-
-本次测试应用 ID 为 win.cheems.core.preview，桌面名称 Cheems Core DNS预览，可与旧版共存，避免卸载旧版丢失配置。请先停止其他 VPN，在新应用重新导入自己保存的订阅。
-
-虚拟 DNS 查询现在进入 DNS 处理器，回复还原为被查询的虚拟 DNS 地址；覆盖 IPv4/IPv6、UDP 经节点及 TCP 回退。TCP 虚拟 DNS 同样经所选节点转发。DNS 请求在有并发上限的工作线程处理，不阻塞 TUN 数据包循环。
-
-启动后自动验证本地 HTTP 代理经节点访问 example.com:80。这个检查只证明测试目标的 TCP 转发，不证明所有应用流量或 DNS 已在手机上通过。请查看“隧道连接/流量”和 DNS 查询计数，并测试网页。失败时复制运行记录；不要发送订阅地址或节点密码。
-
-第一张截图中的严格 TLS 证书拒绝仍需正确 SNI、可信 CA 或服务商证书指纹等有效配置。此版本没有自动跳过校验。只监听本地端口不再显示为节点转发验证成功。
+Install the APK, import your subscription if this is the first installation of package win.cheems.core.startupdiag, select a real regional AnyTLS entry, then tap Connect VPN. The connection is reported usable only after the startup forwarding check and VPN interface creation succeed.

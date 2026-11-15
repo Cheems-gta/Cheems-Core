@@ -11,6 +11,7 @@ import (
 
 	"github.com/sagernet/sing-tun"
 	"github.com/sagernet/sing/common/buf"
+	"github.com/sagernet/sing/common/logger"
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
 	"golang.org/x/sys/unix"
@@ -45,7 +46,8 @@ func StartTunnel(fd int64) error {
 		return err
 	}
 	options := tun.Options{
-		Name: "cheems", FileDescriptor: owned, MTU: 1500,
+		Logger: logger.NOP(),
+		Name:   "cheems", FileDescriptor: owned, MTU: 1500,
 		Inet4Address: []netip.Prefix{netip.MustParsePrefix("10.77.0.1/30")},
 		Inet6Address: []netip.Prefix{netip.MustParsePrefix("fd77:77::1/126")},
 		DNSAddress:   []netip.Addr{netip.MustParseAddr("10.77.0.2"), netip.MustParseAddr("fd77:77::2")},
@@ -63,7 +65,7 @@ func StartTunnel(fd int64) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	metrics := resetTunnelDiagnostics()
 	handler := &vpnFlowHandler{tcp: current, udp: datagrams, dnsGate: make(chan struct{}, 32), metrics: metrics, ctx: ctx}
-	stack, err := tun.NewStack("go", tun.StackOptions{Context: ctx, Tun: device, TunOptions: options, Handler: handler, UDPTimeout: 2 * time.Minute, ICMPTimeout: time.Minute})
+	stack, err := tun.NewStack("go", tun.StackOptions{Context: ctx, Tun: device, TunOptions: options, Handler: handler, Logger: logger.NOP(), UDPTimeout: 2 * time.Minute, ICMPTimeout: time.Minute})
 	if err != nil {
 		cancel()
 		_ = device.Close()

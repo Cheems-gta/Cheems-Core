@@ -23,7 +23,7 @@ public class NodeAnyTLSTest {
     assertEquals(TransportCapabilities.Status.TCP_READY, TransportCapabilities.status(n.type));
   }
 
-  @Test public void skipCertificateHintRequiresExplicitOneTimeChoice() {
+  @Test public void skipCertificateHintDoesNotBlockImport() {
     Node n = node("skip-cert-verify", true);
     assertTrue(n.unsupported, n.supported());
     assertTrue(n.hasInsecureTlsFlag());
@@ -31,6 +31,34 @@ public class NodeAnyTLSTest {
 
   @Test public void missingPasswordAndUnsupportedFingerprintFailClosed() {
     assertFalse(node("password", "").supported());
-    assertTrue(node("client-fingerprint", "chrome").unsupported.contains("指纹"));
+    assertFalse(node("client-fingerprint", "unknown-browser").supported());
+  }
+  @Test public void commonFingerprintsAndALPNAreAccepted() throws Exception {
+    for (String fp : new String[]{"chrome", "firefox", "safari", "iOS", "android", "edge", "360", "qq", "random"}) {
+      Node n = node("client-fingerprint", fp, "alpn", java.util.Arrays.asList("h2", "http/1.1"));
+      assertTrue(n.unsupported, n.supported());
+      assertEquals("h2,http/1.1", n.anyTLSALPN());
+      Node uri = Subscription.parse("anytls://p%40ss@node.example?fp=" + fp + "&alpn=h2%2Chttp%2F1.1#test").get(0);
+      assertTrue(uri.unsupported, uri.supported());
+      assertEquals(443, uri.port);
+      assertEquals("p@ss", uri.password);
+      assertEquals(n.anyTLSFingerprint(), uri.anyTLSFingerprint());
+      assertEquals(n.anyTLSALPN(), uri.anyTLSALPN());
+    }
+  }
+
+  @Test public void connectionPolicySkipsCertificateChecksWithoutChangingSavedNode() {
+    Node original = node("client-fingerprint", "chrome", "pinSHA256", "old-pin", "ca-str", "old-ca", "sni", "provider.example");
+    Node connection = original.withoutCertificateChecks();
+    assertTrue(connection.unsupported, connection.supported());
+    assertTrue(connection.hasInsecureTlsFlag());
+    assertEquals("", connection.certificateSHA256());
+    assertEquals("", connection.trustedCAPEM());
+    assertEquals("chrome", connection.anyTLSFingerprint());
+    assertEquals("provider.example", connection.sni);
+    assertEquals(original.password, connection.password);
+    assertFalse(original.hasInsecureTlsFlag());
+    assertEquals("old-pin", original.certificateSHA256());
   }
 }
+

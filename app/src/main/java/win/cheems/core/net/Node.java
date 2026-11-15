@@ -52,8 +52,10 @@ public final class Node {
       reason = "当前独立内核尚不支持 Hysteria 2 混淆（Salamander）";
     else if (type.equals("hysteria2") && m.containsKey("ports"))
       reason = "当前独立内核尚不支持 Hysteria 2 端口跳跃";
-    else if (type.equals("anytls") && !value(m, "client-fingerprint", "").isEmpty())
-      reason = "AnyTLS 客户端 TLS 指纹尚未实现";
+    else if (type.equals("anytls") && !Arrays.asList("", "none", "chrome", "firefox", "safari", "ios", "android", "edge", "360", "qq", "random").contains(anyTLSFingerprint()))
+      reason = "AnyTLS 客户端 TLS 指纹名称不支持：" + anyTLSFingerprint();
+    else if (type.equals("anytls") && !anyTLSALPN().isEmpty() && !validTuicALPN(anyTLSALPN()))
+      reason = "AnyTLS ALPN 参数无效";
     else if (!Arrays.asList("ss", "ss2022", "trojan", "socks5", "http", "hysteria2", "anytls", "vless", "vmess", "tuic").contains(type))
       reason = "暂未实现 " + type + " 协议";
     else if (m.containsKey("plugin") && !value(m, "plugin", "").isEmpty()) reason = "暂不支持插件传输";
@@ -69,13 +71,33 @@ public final class Node {
         && !Arrays.asList("aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305").contains(cipher))
       reason = "暂不支持加密方式 " + cipher;
     else if ((type.equals("ss") || type.equals("trojan")) && password.isEmpty()) reason = "缺少密码";
-    else if (!type.equals("hysteria2") && !type.equals("anytls") && !type.equals("vless") && !type.equals("vmess")
-        && Boolean.parseBoolean(value(m, "skip-cert-verify", "false")))
-      reason = "此配置要求跳过证书验证；请使用有效证书";
     unsupported = reason;
   }
 
-  /** Record the provider's insecure hint; actual TLS verification stays enabled. */
+  /** Build the app's explicitly requested compatibility policy without altering saved credentials. */
+  public Node withoutCertificateChecks() {
+    if (isReality()) return this; // Reality uses protocol authentication, not a CA certificate.
+    Map<String, Object> config = new LinkedHashMap<>(source);
+    config.put("skip-cert-verify", true);
+    for (String key : Arrays.asList("ca", "ca-str", "pinSHA256", "pin-sha256", "pin-sha-256")) config.remove(key);
+    return new Node(config);
+  }
+
+  public String anyTLSFingerprint() {
+    return value(source, "client-fingerprint", value(source, "fp", "")).trim().toLowerCase(Locale.ROOT);
+  }
+
+  public String anyTLSALPN() {
+    Object raw = source.get("alpn");
+    if (raw instanceof List) {
+      List<String> protocols = new ArrayList<>();
+      for (Object entry : (List<?>) raw) protocols.add(String.valueOf(entry));
+      return String.join(",", protocols);
+    }
+    return value(source, "alpn", "");
+  }
+
+  /** The provider's original TLS hint; the app applies its connection policy separately. */
   public boolean hasInsecureTlsFlag() {
     return (type.equals("hysteria2") || type.equals("anytls") || type.equals("vless"))
         && Boolean.parseBoolean(value(source, "skip-cert-verify", "false"));

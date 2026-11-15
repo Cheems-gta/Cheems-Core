@@ -26,6 +26,8 @@ type AnyTLSConfig struct {
 	Address            string
 	ServerName         string
 	Password           string
+	Fingerprint        string
+	ALPN               []string
 	Timeout            time.Duration
 	Network            Network
 	TrustedCAPEM       string
@@ -52,6 +54,14 @@ func NewAnyTLSClient(ctx context.Context, cfg AnyTLSConfig) (*AnyTLSClient, erro
 	}
 	if len(cfg.TrustedCAPEM) > 2*1024*1024 {
 		return nil, errors.New("combined platform and custom CA bundle exceeds 2 MiB")
+	}
+	if _, err := anyTLSHelloID(cfg.Fingerprint); err != nil {
+		return nil, err
+	}
+	for _, protocol := range cfg.ALPN {
+		if len(protocol) == 0 || len(protocol) > 255 || strings.ContainsAny(protocol, "\r\n") {
+			return nil, errors.New("invalid AnyTLS ALPN protocol")
+		}
 	}
 	tlsConfig, err := newAnyTLSTLSConfig(cfg)
 	if err != nil {
@@ -93,7 +103,11 @@ func NewAnyTLSClient(ctx context.Context, cfg AnyTLSConfig) (*AnyTLSClient, erro
 		if dialErr != nil {
 			return nil, dialErr
 		}
-		tlsConn := tls.Client(conn, tlsConfig.Clone())
+		tlsConn, helloErr := anyTLSClientConn(conn, tlsConfig.Clone(), cfg.Fingerprint)
+		if helloErr != nil {
+			_ = conn.Close()
+			return nil, helloErr
+		}
 		handshakeCtx, cancel := context.WithTimeout(dialCtx, cfg.Timeout)
 		defer cancel()
 		if handshakeErr := tlsConn.HandshakeContext(handshakeCtx); handshakeErr != nil {
@@ -121,7 +135,7 @@ func newAnyTLSTLSConfig(cfg AnyTLSConfig) (*tls.Config, error) {
 	if cfg.ServerName == "" || strings.ContainsAny(cfg.ServerName, "/\\\r\n") {
 		return nil, errors.New("invalid AnyTLS server name")
 	}
-	config := &tls.Config{ServerName: cfg.ServerName, MinVersion: tls.VersionTLS12}
+	config := &tls.Config{ServerName: cfg.ServerName, MinVersion: tls.VersionTLS12, NextProtos: append([]string(nil), cfg.ALPN...)}
 	if strings.TrimSpace(cfg.TrustedCAPEM) != "" {
 		roots, err := x509.SystemCertPool()
 		if err != nil || roots == nil {

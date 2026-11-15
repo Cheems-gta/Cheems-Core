@@ -28,7 +28,11 @@ public final class CoreService extends VpnService {
   private String ownedHttpPassword;
   private ProxyCore ownedCore;
   private volatile Thread connectionMonitor;
-  private static final ArrayDeque<String> events = new ArrayDeque<>();
+  private static DiagnosticJournal events = new DiagnosticJournal(null);
+
+  static synchronized void initializeJournal(Context context) {
+    events = new DiagnosticJournal(context.getSharedPreferences("vpn_events", MODE_PRIVATE));
+  }
   private final AtomicBoolean launching = new AtomicBoolean();
   private volatile boolean destroyed;
   private volatile ParcelFileDescriptor vpnInterface;
@@ -73,12 +77,11 @@ public final class CoreService extends VpnService {
   private android.net.Network physicalNetwork;
 
   static synchronized void log(String s) {
-    if (events.size() >= 40) events.removeFirst();
-    events.addLast(s);
+    events.append(s, selected, localHttpPassword, Hysteria2Native.localSocksToken());
   }
 
   static synchronized String logs() {
-    return String.join("\n", events);
+    return events.snapshot();
   }
 
   private void updateConnecting(boolean value) {
@@ -186,7 +189,7 @@ public final class CoreService extends VpnService {
                   }
                   log("正在连接 " + node.type.toUpperCase(java.util.Locale.ROOT) + " 节点…");
                   if (allowUnverifiedTLS)
-                    log("安全提示：本次连接按用户确认跳过常规 TLS 校验；配置的证书指纹仍会检查");
+                    log("节点 TLS 证书校验已跳过（当前兼容设置）");
                   else if (customCAPEM != null && !customCAPEM.isBlank())
                     log("本次节点连接使用自定义 CA，并继续校验服务器名称");
                   Hysteria2Native.start(node, Hysteria2Native.LOCAL_SOCKS_PORT,
@@ -370,4 +373,5 @@ public final class CoreService extends VpnService {
     return super.onBind(i);
   }
 }
+
 

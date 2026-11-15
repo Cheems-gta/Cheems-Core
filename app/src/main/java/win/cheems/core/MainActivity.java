@@ -89,53 +89,17 @@ public final class MainActivity extends Activity {
           public void onNothingSelected(android.widget.AdapterView<?> a) {}
         });
     button(imports, "验证完整代理转发（需先启动）", this::probe);
-    final String autoTlsKey = "auto_follow_subscription_tls";
-    Switch autoTls = new Switch(this);
-    autoTls.setText("自动遵循订阅的 TLS 策略（仅标记跳过验证的节点）");
-    autoTls.setTextColor(ink);
-    autoTls.setTextSize(13);
-    autoTls.setChecked(getPreferences(0).getBoolean(autoTlsKey, false));
-    imports.addView(autoTls);
-    imports.addView(label("开启后，订阅明确要求跳过证书验证的节点将不再逐次弹窗。可能遭遇服务器冒充；其他节点仍严格验证。", 12, muted));
-    autoTls.setOnCheckedChangeListener((buttonView, checked) -> {
-      boolean saved = getPreferences(0).getBoolean(autoTlsKey, false);
-      if (checked == saved) return;
-      if (!checked) {
-        getPreferences(0).edit().putBoolean(autoTlsKey, false).apply();
-        return;
-      }
-      // Restore the persisted state without invoking another confirmation dialog.
-      autoTls.setOnCheckedChangeListener(null);
-      autoTls.setChecked(false);
-      autoTls.setOnCheckedChangeListener((view, value) -> {
-        getPreferences(0).edit().putBoolean(autoTlsKey, value).apply();
-      });
-      new AlertDialog.Builder(this)
-          .setTitle("确认自动遵循订阅 TLS 设置")
-          .setMessage("仅当订阅明确标记 skip-cert-verify 时，自动跳过服务器证书身份验证。连接仍使用 TLS 加密，但无法确认服务器身份，可能被冒充。")
-          .setNegativeButton("取消", null)
-          .setPositiveButton("理解风险，启用", (dialog, which) -> autoTls.setChecked(true))
-          .show();
-    });
+    imports.addView(label("节点 TLS：默认跳过证书验证（无法核验服务器身份）", 12, muted));
     LinearLayout actions = card(root);
-    actions.addView(label("02  本地代理", 17, ink));
+    actions.addView(label("02  VPN 连接", 17, ink));
     button(
         actions,
-        "启动代理",
+        "连接 VPN",
         () -> {
           Node n = current();
           if (n == null) return;
-          if (n.hasInsecureTlsFlag() && getPreferences(0).getBoolean("auto_follow_subscription_tls", false)) {
-            CoreService.log("节点订阅要求跳过 TLS 证书验证；已按用户授权的订阅策略自动应用");
-            startProxy(n, true, "");
-          } else if (n.hasInsecureTlsFlag()) {
-            TlsChoiceDialog.show(this,
-                () -> startProxy(n, false, ""),
-                () -> askTrustedCA(n),
-                () -> confirmUnverifiedTLS(n));
-          } else {
-            startProxy(n, false, "");
-          }
+          Node connectionNode = n.withoutCertificateChecks();
+          startProxy(connectionNode, !n.isReality(), "");
         });
     button(actions, "停止并关闭连接", () -> stopService(new Intent(this, CoreService.class)));
     button(actions, "复制本地代理账号 / 密码", () -> {
@@ -163,7 +127,7 @@ public final class MainActivity extends Activity {
     logs = label("等待导入节点", 12, muted);
     events.addView(logs);
     android.content.SharedPreferences startup = getSharedPreferences("vpn_startup", MODE_PRIVATE);
-    if (startup.getBoolean("pending", false)) {
+    if (startup.getBoolean("pending", false) && CoreService.core == null && !CoreService.connecting) {
       String interrupted = startup.getString("last_stage", "未知阶段");
       CoreService.connecting = false;
       CoreService.lastFailure = "上次 VPN 启动可能异常中断；查看运行记录";
@@ -224,44 +188,6 @@ public final class MainActivity extends Activity {
     }
   }
 
-  private void askTrustedCA(Node node) {
-    EditText pem = new EditText(this);
-    pem.setHint("-----BEGIN CERTIFICATE-----");
-    pem.setMinLines(5);
-    pem.setMaxLines(10);
-    pem.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-        | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
-        | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-    new AlertDialog.Builder(this)
-        .setTitle("粘贴服务商提供的可信 CA 证书")
-        .setMessage("仅接受 PEM 格式证书，不接受文件路径。证书只用于本次连接。"
-            + " 不要粘贴私钥或订阅密码。")
-        .setView(pem)
-        .setNegativeButton("取消", null)
-        .setPositiveButton("验证 CA 并连接", (dialog, which) -> {
-          String value = pem.getText().toString().trim();
-          if (!value.contains("-----BEGIN CERTIFICATE-----")
-              || !value.contains("-----END CERTIFICATE-----") || value.length() > 64 * 1024) {
-            message("请粘贴完整 PEM 格式 CA 证书（不超过 64 KiB）。");
-            return;
-          }
-          startProxy(node, false, value);
-        })
-        .show();
-  }
-
-  private void confirmUnverifiedTLS(Node node) {
-    new AlertDialog.Builder(this)
-        .setTitle("高风险：跳过节点证书验证")
-        .setMessage("如果没有预先可信的证书指纹，攻击者可能冒充代理服务器，"
-            + "甚至窃取连接凭据。这不会永久修改设置，也不会影响其他节点。"
-            + "只在你确认信任当前网络和节点服务商时使用。")
-        .setNegativeButton("返回", null)
-        .setPositiveButton("已知风险，仅本次尝试", (dialog, which) ->
-            startProxy(node, true, ""))
-        .show();
-  }
-
   private void startProxy(Node node, boolean allowUnverifiedTLS, String trustedCAPEM) {
     if (nativeProtocol(node)) {
       Intent prepare=VpnService.prepare(this);
@@ -298,7 +224,7 @@ public final class MainActivity extends Activity {
     CoreService.selected = node;
     CoreService.lastFailure = null;
     CoreService.connecting = true;
-    CoreService.log("正在准备节点连接（证书策略仅对此次连接有效）");
+    CoreService.log("正在准备节点连接");
     Intent service = new Intent(this, CoreService.class);
     service.putExtra("hy2.allowUnverifiedTls", allowUnverifiedTLS);
     service.putExtra("hy2.trustedCaPem", trustedCAPEM);
@@ -589,4 +515,5 @@ public final class MainActivity extends Activity {
     super.onDestroy();
   }
 }
+
 

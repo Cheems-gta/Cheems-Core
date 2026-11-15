@@ -21,17 +21,18 @@ import (
 // optional verified TLS. WebSocket, gRPC, HTTP obfuscation and client TLS
 // fingerprint impersonation are not included here.
 type VMessConfig struct {
-	GRPC         *GRPCConfig
-	WebSocket    *WebSocketConfig
-	Address      string
-	ServerName   string
-	UserID       string
-	Security     string
-	AlterID      int
-	TLS          bool
-	Timeout      time.Duration
-	Network      Network
-	TrustedCAPEM string
+	GRPC               *GRPCConfig
+	WebSocket          *WebSocketConfig
+	Address            string
+	ServerName         string
+	UserID             string
+	Security           string
+	AlterID            int
+	TLS                bool
+	AllowUnverifiedTLS bool
+	Timeout            time.Duration
+	Network            Network
+	TrustedCAPEM       string
 }
 
 type VMessClient struct {
@@ -103,7 +104,7 @@ func NewVMessClient(cfg VMessConfig) (*VMessClient, error) {
 		if len(cfg.TrustedCAPEM) > 2*1024*1024 {
 			return nil, errors.New("combined platform and custom CA bundle exceeds 2 MiB")
 		}
-		tlsConfig = &tls.Config{ServerName: cfg.ServerName, MinVersion: tls.VersionTLS12}
+		tlsConfig = &tls.Config{ServerName: cfg.ServerName, MinVersion: tls.VersionTLS12, InsecureSkipVerify: cfg.AllowUnverifiedTLS}
 		if strings.TrimSpace(cfg.TrustedCAPEM) != "" {
 			roots, poolErr := x509.SystemCertPool()
 			if poolErr != nil || roots == nil {

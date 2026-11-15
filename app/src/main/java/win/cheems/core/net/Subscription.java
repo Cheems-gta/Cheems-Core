@@ -156,7 +156,7 @@ public final class Subscription {
       Map<String, Object> m = new LinkedHashMap<>();
       m.put("type", "anytls");
       m.put("server", u.getHost() == null ? "" : u.getHost());
-      m.put("port", u.getPort());
+      m.put("port", (u.getPort() == -1 ? 443 : u.getPort()));
       m.put("name", u.getRawFragment() == null ? "AnyTLS · " + u.getHost() : urlDecode(u.getRawFragment()));
       String password = u.getRawUserInfo() == null ? "" : urlDecode(u.getRawUserInfo());
       m.put("password", password);
@@ -166,6 +166,7 @@ public final class Subscription {
           String key = urlDecode(kv[0]), value = kv.length == 2 ? urlDecode(kv[1]) : "";
           if (key.equals("sni") || key.equals("peer") || key.equals("serverName")) m.put("sni", value);
           if (key.equals("alpn")) m.put("alpn", value);
+          if (key.equals("fp") || key.equals("client-fingerprint")) m.put("client-fingerprint", value);
           if (key.equals("insecure") || key.equals("allowInsecure")) m.put("skip-cert-verify", value.equals("1") || value.equalsIgnoreCase("true"));
         }
       }

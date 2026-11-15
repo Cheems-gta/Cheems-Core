@@ -14,6 +14,7 @@ public final class CheemsApplication extends Application {
   @Override
   public void onCreate() {
     super.onCreate();
+    CoreService.initializeJournal(this);
     final Thread.UncaughtExceptionHandler previous =
         Thread.getDefaultUncaughtExceptionHandler();
     Thread.setDefaultUncaughtExceptionHandler((thread, cause) -> {
@@ -45,3 +46,4 @@ public final class CheemsApplication extends Application {
     });
   }
 }
+
