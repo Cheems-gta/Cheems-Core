@@ -14,3 +14,9 @@ dependencies {
  testImplementation "org.robolectric:robolectric:4.14.1"
 }
 
+
+// Robolectric installs process-wide security providers; isolate test classes so
+// platform trust-store tests use an untouched JVM provider configuration.
+tasks.withType(Test).configureEach {
+ forkEvery = 1
+}
