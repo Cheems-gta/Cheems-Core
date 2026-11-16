@@ -1,3 +1,31 @@
+# Making
+
+**Making** is an experimental open-source Android networking and proxy project, formerly known as **Cheems Core**.
+
+> **Repository rename pending:** the GitHub repository and Go module still use `Cheems-Core` paths. Do not change import paths until the repository rename and downstream migration are coordinated.
+
+## Scope and status
+
+This repository contains the original Android Java client and an optional Go-based QUIC / Hysteria 2 transport. It is **not** the same source tree as the separate **Cheems Clash** Android app. Features implemented in Cheems Clash (including its Android TUN integration) must not be assumed to exist in this repository.
+
+The project is experimental. A passing CI build is not proof of compatibility with every server or Android device. Consult the implementation and tests before relying on a protocol.
+
+## Build
+
+See `.github/workflows/android-quic-aar.yml` for the Go and Android native build steps. The Android application and Go module retain their historical package identifiers until a coordinated migration.
+
+## License
+
+Project-owned source code is released under the [MIT License](LICENSE), subject to the rights of the respective contributors. Third-party components retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Security and privacy
+
+Do not commit subscription URLs, node passwords, private keys, signing keys, or real user configuration. Report suspected leaks privately to the repository owner. Existing Git history and transitive dependencies still require a full security/license audit before a stable release.
+
+---
+
+## Historical Cheems Core documentation
+
 # Cheems Core
 
 Experimental independent Android proxy client (Android 9+, Java UI with an optional Go QUIC engine). It **does not embed Mihomo or sing-box**.
