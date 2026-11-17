@@ -1,5 +1,8 @@
 # Making
 
+> **Latest independent Making engine for Doreena:** [Making latest source branch](https://github.com/Cheems-gta/Cheems-Core/tree/making-latest) · [Standalone build and integration guide](https://github.com/Cheems-gta/Cheems-Core/blob/making-latest/MAKING.md). This branch contains the exact upstream engine version pinned by Doreena plus the currently applied TUN/latency integration source, and a workflow that publishes an Android `.aar` and post-patch source archive. The main branch is not identical to Doreena's packaged core.
+
+
 **Making** is an experimental open-source Android networking and proxy project, formerly known as **Cheems Core**.
 
 > **Repository rename pending:** the GitHub repository and Go module still use `Cheems-Core` paths. Do not change import paths until the repository rename and downstream migration are coordinated.
